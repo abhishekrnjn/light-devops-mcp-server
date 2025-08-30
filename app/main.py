@@ -1,7 +1,15 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.v1 import logs
-# from app.api.v1 import logs, metrics, deploy, rollback  # To be added later
+from fastapi.responses import HTMLResponse
+from app.api.v1 import logs, health, metrics, deploy, rollback
+from app.domain.services.log_service import LogService
+from app.domain.services.metrics_service import MetricsService
+from app.domain.services.deploy_service import DeployService
+from app.domain.services.rollback_service import RollbackService
+from app.infrastructure.logs.logs_client import LogsClient
+from app.infrastructure.metrics.metrics_client import MetricsClient
+from app.infrastructure.cicd.cicd_client import CICDClient
+from app.infrastructure.rollback.rollback_client import RollbackClient
 
 def create_app() -> FastAPI:
     app = FastAPI(
@@ -19,12 +27,158 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Dependency functions
+    def get_log_service() -> LogService:
+        return LogService(client=LogsClient())
+
+    def get_metrics_service() -> MetricsService:
+        return MetricsService(client=MetricsClient())
+
+    def get_deploy_service() -> DeployService:
+        return DeployService(client=CICDClient())
+
+    def get_rollback_service() -> RollbackService:
+        return RollbackService(client=RollbackClient())
+
+    # Main dashboard endpoint
+    @app.get("/", response_class=HTMLResponse)
+    async def main_dashboard(
+        log_service: LogService = Depends(get_log_service),
+        metrics_service: MetricsService = Depends(get_metrics_service),
+        deploy_service: DeployService = Depends(get_deploy_service),
+        rollback_service: RollbackService = Depends(get_rollback_service)
+    ):
+        # Fetch data from all services
+        logs_data = await log_service.get_recent_logs()
+        metrics_data = await metrics_service.get_recent_metrics()
+        deployments_data = await deploy_service.get_recent_deployments()
+        rollbacks_data = await rollback_service.get_recent_rollbacks()
+
+        # Create HTML dashboard
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>DevOps MCP Server Dashboard</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }}
+                .container {{ max-width: 1200px; margin: 0 auto; }}
+                .header {{ text-align: center; color: #333; margin-bottom: 30px; }}
+                .section {{ background: white; margin: 20px 0; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+                .section h2 {{ color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }}
+                .item {{ background: #f8f9fa; margin: 10px 0; padding: 15px; border-radius: 5px; border-left: 4px solid #3498db; }}
+                .timestamp {{ color: #7f8c8d; font-size: 0.9em; }}
+                .status-success {{ color: #27ae60; font-weight: bold; }}
+                .status-error {{ color: #e74c3c; font-weight: bold; }}
+                .metric-value {{ font-size: 1.2em; font-weight: bold; color: #2980b9; }}
+                .no-data {{ color: #95a5a6; font-style: italic; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>🚀 DevOps MCP Server Dashboard</h1>
+                    <p>Real-time monitoring and deployment management</p>
+                </div>
+
+                <div class="section">
+                    <h2>📊 System Metrics</h2>
+                    {_format_metrics(metrics_data)}
+                </div>
+
+                <div class="section">
+                    <h2>🚀 Recent Deployments</h2>
+                    {_format_deployments(deployments_data)}
+                </div>
+
+                <div class="section">
+                    <h2>🔄 Recent Rollbacks</h2>
+                    {_format_rollbacks(rollbacks_data)}
+                </div>
+
+                <div class="section">
+                    <h2>📝 System Logs</h2>
+                    {_format_logs(logs_data)}
+                </div>
+
+                <div style="text-align: center; margin-top: 30px; color: #7f8c8d;">
+                    <p>API Documentation: <a href="/docs" target="_blank">Swagger UI</a> | <a href="/redoc" target="_blank">ReDoc</a></p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        return html_content
+
+    def _format_metrics(metrics_data):
+        if not metrics_data:
+            return '<p class="no-data">No metrics data available</p>'
+        
+        items = []
+        for metric in metrics_data:
+            items.append(f'''
+                <div class="item">
+                    <strong>{metric.name}</strong>: 
+                    <span class="metric-value">{metric.value} {metric.unit}</span>
+                    <div class="timestamp">{metric.timestamp.strftime("%Y-%m-%d %H:%M:%S")}</div>
+                </div>
+            ''')
+        return ''.join(items)
+
+    def _format_deployments(deployments_data):
+        if not deployments_data:
+            return '<p class="no-data">No deployment data available</p>'
+        
+        items = []
+        for deployment in deployments_data:
+            status_class = "status-success" if deployment.status == "SUCCESS" else "status-error"
+            items.append(f'''
+                <div class="item">
+                    <strong>{deployment.service_name}</strong> v{deployment.version} 
+                    → <strong>{deployment.environment}</strong>
+                    <span class="{status_class}">({deployment.status})</span>
+                    <div class="timestamp">ID: {deployment.deployment_id[:8]}... | {deployment.timestamp.strftime("%Y-%m-%d %H:%M:%S")}</div>
+                </div>
+            ''')
+        return ''.join(items)
+
+    def _format_rollbacks(rollbacks_data):
+        if not rollbacks_data:
+            return '<p class="no-data">No rollback data available</p>'
+        
+        items = []
+        for rollback in rollbacks_data:
+            status_class = "status-success" if rollback.status == "SUCCESS" else "status-error"
+            items.append(f'''
+                <div class="item">
+                    <strong>Rollback:</strong> {rollback.reason}
+                    <span class="{status_class}">({rollback.status})</span>
+                    <div class="timestamp">Deployment: {rollback.deployment_id[:8]}... | {rollback.timestamp.strftime("%Y-%m-%d %H:%M:%S")}</div>
+                </div>
+            ''')
+        return ''.join(items)
+
+    def _format_logs(logs_data):
+        if not logs_data:
+            return '<p class="no-data">No log data available</p>'
+        
+        items = []
+        for log in logs_data:
+            status_class = "status-error" if log.level == "ERROR" else "status-success"
+            items.append(f'''
+                <div class="item">
+                    <span class="{status_class}">[{log.level}]</span> {log.message}
+                    <div class="timestamp">{log.timestamp.strftime("%Y-%m-%d %H:%M:%S")}</div>
+                </div>
+            ''')
+        return ''.join(items)
+
     # Mount routers
-    #app.include_router(health.router, prefix="/api/v1")
+    app.include_router(health.router, prefix="/api/v1")
     app.include_router(logs.router, prefix="/api/v1")
-    # app.include_router(metrics.router, prefix="/api/v1")
-    # app.include_router(deploy.router, prefix="/api/v1")
-    # app.include_router(rollback.router, prefix="/api/v1")
+    app.include_router(metrics.router, prefix="/api/v1")
+    app.include_router(deploy.router, prefix="/api/v1")
+    app.include_router(rollback.router, prefix="/api/v1")
 
     return app
 

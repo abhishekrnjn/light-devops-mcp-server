@@ -1,7 +1,7 @@
 from datetime import datetime
 from pydantic import BaseModel
 
-class MetricResponse(BaseModel):
+class Metric(BaseModel):
     timestamp: datetime
     name: str
     value: float
