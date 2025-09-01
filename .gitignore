@@ -156,7 +156,7 @@ Desktop.ini
 
 # Project specific
 *.log
-logs/
+/logs/
 temp/
 tmp/
 cache/

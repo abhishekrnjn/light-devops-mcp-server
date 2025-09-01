@@ -1,11 +1,11 @@
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from app.domain.entities.metric import Metric
 
 class MetricsClient:
     async def fetch_metrics(self) -> list[Metric]:
         metrics = ["cpu_usage", "memory_usage", "disk_usage", "network_io"]
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         return [
             Metric(
                 timestamp=now - timedelta(minutes=i),

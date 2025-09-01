@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from app.domain.entities.rollback import Rollback
 
 class RollbackClient:
@@ -10,7 +10,7 @@ class RollbackClient:
             deployment_id=deployment_id,
             status="SUCCESS",
             reason=reason,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
     
     async def get_rollbacks(self) -> list[Rollback]:
@@ -24,7 +24,7 @@ class RollbackClient:
                 deployment_id=str(uuid.uuid4()),
                 status=statuses[i % len(statuses)],
                 reason=reasons[i % len(reasons)],
-                timestamp=datetime.utcnow()
+                timestamp=datetime.now(timezone.utc)
             )
             for i in range(3)
         ]
