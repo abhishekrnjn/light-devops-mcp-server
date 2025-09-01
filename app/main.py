@@ -10,18 +10,21 @@ from app.infrastructure.logs.logs_client import LogsClient
 from app.infrastructure.metrics.metrics_client import MetricsClient
 from app.infrastructure.cicd.cicd_client import CICDClient
 from app.infrastructure.rollback.rollback_client import RollbackClient
+from app.dependencies import get_current_user
+from app.schemas.auth import UserPrincipal
+from app.utils.scope_checker import has_scopes
 
 def create_app() -> FastAPI:
     app = FastAPI(
         title="DevOps MCP Server",
-        description="Autonomous DevOps MCP server with Descope + Cequence integration",
+        description="Autonomous DevOps MCP server with mock data",
         version="0.1.0",
     )
 
     # CORS
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # TODO: restrict in production
+        allow_origins=["*"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -43,16 +46,23 @@ def create_app() -> FastAPI:
     # Main dashboard endpoint
     @app.get("/", response_class=HTMLResponse)
     async def main_dashboard(
+        principal: UserPrincipal = Depends(get_current_user),
         log_service: LogService = Depends(get_log_service),
         metrics_service: MetricsService = Depends(get_metrics_service),
         deploy_service: DeployService = Depends(get_deploy_service),
         rollback_service: RollbackService = Depends(get_rollback_service)
     ):
-        # Fetch data from all services
-        logs_data = await log_service.get_recent_logs()
-        metrics_data = await metrics_service.get_recent_metrics()
-        deployments_data = await deploy_service.get_recent_deployments()
-        rollbacks_data = await rollback_service.get_recent_rollbacks()
+        # Determine permissions for this user
+        can_view_logs = has_scopes(principal, ["logs.read"], mode="any")
+        can_view_metrics = has_scopes(principal, ["metrics.read"], mode="any")
+        can_view_deploys = has_scopes(principal, ["deploy.read", "deploy.staging", "deploy.production"], mode="any")
+        can_rollback = has_scopes(principal, ["rollback.write"], mode="any")
+
+        # Fetch only the data the user is allowed to see
+        logs_data = await log_service.get_recent_logs() if can_view_logs else []
+        metrics_data = await metrics_service.get_recent_metrics() if can_view_metrics else []
+        deployments_data = await deploy_service.get_recent_deployments() if can_view_deploys else []
+        rollbacks_data = await rollback_service.get_recent_rollbacks() if can_rollback else []
 
         # Create HTML dashboard
         html_content = f"""
@@ -79,6 +89,10 @@ def create_app() -> FastAPI:
                 <div class="header">
                     <h1>🚀 DevOps MCP Server Dashboard</h1>
                     <p>Real-time monitoring and deployment management</p>
+                    <div style="text-align:right; font-size:0.9em; color:#555; margin-top:10px;">
+                        Signed in as: <strong>{principal.name or principal.login_id or principal.user_id}</strong>
+                        &nbsp;|&nbsp; Scopes: <code>{', '.join(principal.scopes or []) or '—'}</code>
+                    </div>
                 </div>
 
                 <div class="section">
@@ -181,6 +195,5 @@ def create_app() -> FastAPI:
     app.include_router(rollback.router, prefix="/api/v1")
 
     return app
-
 
 app = create_app()
