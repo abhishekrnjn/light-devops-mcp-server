@@ -1,30 +1,27 @@
 from fastapi import APIRouter, Depends
 from typing import List
 from app.schemas.rollback import RollbackRequest, RollbackResponse
-from app.domain.services.rollback_service import RollbackService
-from app.infrastructure.rollback.rollback_client import RollbackClient
-from app.api.deps.auth_deps import require_scopes
+from app.dependencies import require_permissions, get_rollback_service
 
 router = APIRouter()
-
-def get_rollback_service() -> RollbackService:
-    return RollbackService(client=RollbackClient())
 
 @router.post(
     "/rollback",
     response_model=RollbackResponse,
-    dependencies=[Depends(require_scopes(["deploy:rollback"]))]
+    dependencies=[Depends(require_permissions(["rollback.write"]))]
 )
 async def rollback_deployment(
     request: RollbackRequest,
-    service: RollbackService = Depends(get_rollback_service)
+    service = Depends(get_rollback_service)
 ):
+    """Rollback a deployment - requires 'rollback.write' permission."""
     return await service.rollback(request.deployment_id, request.reason)
 
 @router.get(
     "/rollbacks",
     response_model=List[RollbackResponse],
-    dependencies=[Depends(require_scopes(["deploy:read"]))]
+    dependencies=[Depends(require_permissions(["read_rollbacks"]))]  # Rollback history uses logs permission
 )
-async def get_rollbacks(service: RollbackService = Depends(get_rollback_service)):
+async def get_rollbacks(service = Depends(get_rollback_service)):
+    """Get rollback history - requires 'read_logs' permission."""
     return await service.get_recent_rollbacks()

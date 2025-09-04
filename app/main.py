@@ -1,16 +1,8 @@
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
-from app.api.v1 import logs, health, metrics, deploy, rollback
-from app.domain.services.log_service import LogService
-from app.domain.services.metrics_service import MetricsService
-from app.domain.services.deploy_service import DeployService
-from app.domain.services.rollback_service import RollbackService
-from app.infrastructure.logs.logs_client import LogsClient
-from app.infrastructure.metrics.metrics_client import MetricsClient
-from app.infrastructure.cicd.cicd_client import CICDClient
-from app.infrastructure.rollback.rollback_client import RollbackClient
-from app.dependencies import get_current_user
+from app.api.v1 import logs, health, metrics, deploy, rollback, auth
+from app.dependencies import get_current_user, get_log_service, get_metrics_service, get_deploy_service, get_rollback_service
 from app.schemas.auth import UserPrincipal
 from app.utils.scope_checker import has_scopes
 
@@ -30,33 +22,22 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Dependency functions
-    def get_log_service() -> LogService:
-        return LogService(client=LogsClient())
-
-    def get_metrics_service() -> MetricsService:
-        return MetricsService(client=MetricsClient())
-
-    def get_deploy_service() -> DeployService:
-        return DeployService(client=CICDClient())
-
-    def get_rollback_service() -> RollbackService:
-        return RollbackService(client=RollbackClient())
 
     # Main dashboard endpoint
     @app.get("/", response_class=HTMLResponse)
     async def main_dashboard(
         principal: UserPrincipal = Depends(get_current_user),
-        log_service: LogService = Depends(get_log_service),
-        metrics_service: MetricsService = Depends(get_metrics_service),
-        deploy_service: DeployService = Depends(get_deploy_service),
-        rollback_service: RollbackService = Depends(get_rollback_service)
+        log_service = Depends(get_log_service),
+        metrics_service = Depends(get_metrics_service),
+        deploy_service = Depends(get_deploy_service),
+        rollback_service = Depends(get_rollback_service)
     ):
-        # Determine permissions for this user
-        can_view_logs = has_scopes(principal, ["logs.read"], mode="any")
-        can_view_metrics = has_scopes(principal, ["metrics.read"], mode="any")
-        can_view_deploys = has_scopes(principal, ["deploy.read", "deploy.staging", "deploy.production"], mode="any")
-        can_rollback = has_scopes(principal, ["rollback.write"], mode="any")
+        # Determine permissions for this user based on RBAC
+        user_permissions = set(principal.permissions)
+        can_view_logs = "read_logs" in user_permissions
+        can_view_metrics = "read_metric" in user_permissions
+        can_view_deploys = bool({"deploy_staging", "deploy_production"}.intersection(user_permissions))
+        can_rollback = "rollback.write" in user_permissions
 
         # Fetch only the data the user is allowed to see
         logs_data = await log_service.get_recent_logs() if can_view_logs else []
@@ -91,7 +72,10 @@ def create_app() -> FastAPI:
                     <p>Real-time monitoring and deployment management</p>
                     <div style="text-align:right; font-size:0.9em; color:#555; margin-top:10px;">
                         Signed in as: <strong>{principal.name or principal.login_id or principal.user_id}</strong>
-                        &nbsp;|&nbsp; Scopes: <code>{', '.join(principal.scopes or []) or '—'}</code>
+                        &nbsp;|&nbsp; Tenant: <code>{principal.tenant or 'N/A'}</code>
+                        <br/>
+                        Roles: <code>{', '.join(principal.roles) or '—'}</code>
+                        &nbsp;|&nbsp; Permissions: <code>{', '.join(principal.permissions) or '—'}</code>
                     </div>
                 </div>
 
@@ -189,6 +173,7 @@ def create_app() -> FastAPI:
 
     # Mount routers
     app.include_router(health.router, prefix="/api/v1")
+    app.include_router(auth.router, prefix="/api/v1")
     app.include_router(logs.router, prefix="/api/v1")
     app.include_router(metrics.router, prefix="/api/v1")
     app.include_router(deploy.router, prefix="/api/v1")

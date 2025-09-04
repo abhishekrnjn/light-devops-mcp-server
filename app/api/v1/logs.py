@@ -1,19 +1,15 @@
 from fastapi import APIRouter, Depends
 from typing import List
 from app.schemas.logs import LogResponse
-from app.domain.services.log_service import LogService
-from app.infrastructure.logs.logs_client import LogsClient
-from app.api.deps.auth_deps import require_scopes
+from app.dependencies import require_permissions, get_log_service
 
 router = APIRouter()
-
-def get_log_service() -> LogService:
-    return LogService(client=LogsClient())
 
 @router.get(
     "/logs",
     response_model=List[LogResponse],
-    dependencies=[Depends(require_scopes(["logs:read"]))]
+    dependencies=[Depends(require_permissions(["read_logs"]))]
 )
-async def get_logs(service: LogService = Depends(get_log_service)):
+async def get_logs(service = Depends(get_log_service)):
+    """Get system logs - requires 'read_logs' permission."""
     return await service.get_recent_logs()
