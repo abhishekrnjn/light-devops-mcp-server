@@ -15,7 +15,7 @@ class Settings:
     DESCOPE_AUDIENCE: Optional[str] = os.getenv("DESCOPE_AUDIENCE")
     
     # Auth - development-friendly defaults
-    AUTH_ALLOW_ANONYMOUS: bool = os.getenv("AUTH_ALLOW_ANONYMOUS", "true").lower() == "true"
+    AUTH_ALLOW_ANONYMOUS: bool = os.getenv("AUTH_ALLOW_ANONYMOUS", "false").lower() == "true"
     AUTH_ACCEPT_COOKIE_NAME: str = os.getenv("AUTH_ACCEPT_COOKIE_NAME", "DS")
     
     # RBAC Configuration
@@ -28,20 +28,20 @@ class Settings:
     
     # Available permissions in the system
     AVAILABLE_PERMISSIONS: List[str] = [
-        "read_metric",
+        "read_metrics",      # Fixed: was read_metric
         "read_logs", 
         "read_deployments",  # View deployment history
         "read_rollbacks",    # View rollback history
         "deploy_staging",
         "deploy_production",
-        "rollback.write"
+        "rollback_write"     # Fixed: was rollback.write
     ]
     
     # Role to permission mapping for reference
     ROLE_PERMISSIONS = {
-        "Observer": ["read_metric", "read_logs"],
-        "developer": ["read_metric", "read_logs", "read_deployments", "deploy_staging"],
-        "developer_prod_access": ["read_metric", "read_logs", "read_deployments", "read_rollbacks", "deploy_staging", "deploy_production", "rollback.write"]
+        "Observer": ["read_metrics", "read_logs"],
+        "developer": ["read_metrics", "read_logs", "read_deployments", "deploy_staging"],
+        "developer_prod_access": ["read_metrics", "read_logs", "read_deployments", "read_rollbacks", "deploy_staging", "deploy_production", "rollback_write"]
     }
 
 settings = Settings()

@@ -1,14 +1,20 @@
 from __future__ import annotations
 from typing import Any, Dict, List, Optional
 import logging
+
 logger = logging.getLogger(__name__)
 
 try:
     from descope import (
-        DescopeClient,
-        AuthException,
         REFRESH_SESSION_TOKEN_NAME,
-        SESSION_TOKEN_NAME
+        SESSION_TOKEN_NAME,
+        AuthException,
+        DeliveryMethod,
+        DescopeClient,
+        AssociatedTenant,
+        RoleMapping,
+        AttributeMapping,
+        LoginOptions
     )
     DESCOPE_AVAILABLE = True
 except ImportError:
@@ -28,266 +34,321 @@ class DescopeAuthError(HTTPException):
 
 class DescopeAuthClient:
     """
-    Enhanced Descope client with RBAC support for B2B applications.
-    Supports:
-    - Session validation with audience
-    - Role-based access control
-    - Permission-based access control
-    - Tenant-specific roles and permissions
-    - Session refresh
+    Clean Descope authentication client implementation.
+    Handles session validation, refresh, and logout operations.
     """
-
-    def __init__(self) -> None:
-        if DESCOPE_AVAILABLE and settings.DESCOPE_PROJECT_ID:
-            try:
-                self.client = DescopeClient(project_id=settings.DESCOPE_PROJECT_ID)
-                logger.info(f"✅ Descope client initialized with project ID: {settings.DESCOPE_PROJECT_ID}")
-            except Exception as e:
-                logger.error(f"❌ Failed to initialize Descope client: {e}")
-                self.client = None
-        else:
-            logger.warning("⚠️ Descope not available or project ID not configured")
+    
+    def __init__(self):
+        """Initialize the Descope client with project configuration."""
+        if not DESCOPE_AVAILABLE:
+            logger.warning("⚠️ Descope SDK not available - authentication will be disabled")
+            self.client = None
+            return
+        
+        if not settings.DESCOPE_PROJECT_ID:
+            logger.warning("⚠️ DESCOPE_PROJECT_ID not configured - authentication will be disabled")
+            self.client = None
+            return
+        
+        try:
+            # Initialize Descope client with project ID
+            self.client = DescopeClient(project_id=settings.DESCOPE_PROJECT_ID)
+            logger.info(f"✅ Descope client initialized for project: {settings.DESCOPE_PROJECT_ID}")
+        except Exception as error:
+            logger.error(f"❌ Failed to initialize Descope client: {error}")
             self.client = None
 
-    def _claims_to_principal(self, token: str, claims: Dict[str, Any]) -> UserPrincipal:
-        # Descope common claim names; adjust if your project uses custom names
-        user_id = claims.get("sub") or claims.get("userId") or claims.get("uid")
-        if not user_id:
-            raise DescopeAuthError("Invalid token: user id not found")
+    def is_configured(self) -> bool:
+        """Check if Descope client is properly configured."""
+        return self.client is not None
 
-        # Claims can differ; try common fields
-        login_id = claims.get("login_id") or claims.get("loginId") or claims.get("email")
-        email = claims.get("email")
-        name = claims.get("name") or claims.get("user_name")
-        tenant = claims.get("tenant") or claims.get("tnt")
-
-        # Roles/scopes: Descope supports roles; scopes may live in custom claims or in roles-to-scopes mapping
-        roles = claims.get("roles") or claims.get("role") or []
-        scopes = claims.get("permissions") or claims.get("perms") or claims.get("scopes") or []
-
-        # Normalize to list[str]
-        if isinstance(roles, str):
-            roles = [roles]
-        if isinstance(scopes, str):
-            scopes = [scopes]
-
-        return UserPrincipal(
-            user_id=str(user_id),
-            login_id=login_id,
-            email=email,
-            name=name,
-            tenant=tenant,
-            roles=list(roles),
-            scopes=list(scopes),
-            token=token,
-            claims={k: str(v) for k, v in claims.items() if isinstance(k, str)},
-        )
-
-    def validate_session(self, session_token: str, refresh_token: Optional[str] = None) -> Dict[str, Any]:
+    def validate_session(self, session_token: str, refresh_token: Optional[str] = None, audience: Optional[str] = None) -> Dict[str, Any]:
         """
-        Validate session token with optional refresh capability.
-        Returns the JWT response for further role/permission validation.
+        Validate session token and optionally refresh if expired.
+        
+        Args:
+            session_token: The session token to validate
+            refresh_token: Optional refresh token for automatic refresh
+            audience: Optional audience claim to validate
+            
+        Returns:
+            JWT response with user claims and permissions
+            
+        Raises:
+            DescopeAuthError: If validation fails
         """
         if not self.client:
-            # Mock response for development
-            return {
-                "sub": "dev-user",
-                "email": "dev@example.com",
-                "name": "Development User",
-                "roles": settings.AVAILABLE_ROLES,
-                "permissions": settings.AVAILABLE_PERMISSIONS,
-                "tenant": "dev-tenant"
-            }
+            raise DescopeAuthError("Descope client not configured")
         
         try:
             logger.info("🔄 Validating session token...")
+            logger.info(f"🔍 Token preview: {session_token[:20]}...{session_token[-10:] if len(session_token) > 30 else ''}")
+            logger.info(f"🔍 Audience: {audience or 'None'}")
+            logger.info(f"🔍 Has refresh token: {bool(refresh_token)}")
             
-            # Validate session with optional audience
-            audience = settings.DESCOPE_AUDIENCE
-            jwt_response = self.client.validate_session(
-                session_token=session_token, 
-                audience=audience
-            )
+            # Try to validate and refresh session if refresh token is available
+            if refresh_token:
+                logger.info("🔄 Using validate_and_refresh_session...")
+                jwt_response = self.client.validate_and_refresh_session(
+                    session_token=session_token,
+                    refresh_token=refresh_token
+                )
+            else:
+                # Validate session with optional audience
+                logger.info("🔄 Using validate_session...")
+                if audience:
+                    jwt_response = self.client.validate_session(
+                        session_token=session_token, 
+                        audience=audience
+                    )
+                else:
+                    jwt_response = self.client.validate_session(
+                        session_token=session_token
+                    )
             
             logger.info("✅ Session validation successful")
+            logger.info(f"📋 JWT response keys: {list(jwt_response.keys()) if isinstance(jwt_response, dict) else 'Not a dict'}")
+            
             return jwt_response
             
         except AuthException as e:
             logger.error(f"❌ Session validation failed: {e}")
-            
-            # Try to refresh if refresh token is provided
-            if refresh_token:
-                try:
-                    logger.info("🔄 Attempting to refresh session...")
-                    jwt_response = self.client.refresh_session(refresh_token)
-                    logger.info("✅ Session refresh successful")
-                    return jwt_response
-                except AuthException as refresh_error:
-                    logger.error(f"❌ Session refresh failed: {refresh_error}")
-                    raise DescopeAuthError("Session expired and refresh failed")
-            
-            raise DescopeAuthError(f"Session validation failed: {str(e)}")
+            raise DescopeAuthError(f"Session validation error: {e}")
         except Exception as e:
             logger.error(f"❌ Unexpected error during session validation: {e}")
-            raise DescopeAuthError("Session validation error")
+            raise DescopeAuthError(f"Session validation error: {e}")
 
-    def verify_bearer_token(self, token: str) -> UserPrincipal:
+    def refresh_session(self, refresh_token: str) -> Dict[str, Any]:
         """
-        Validate bearer token (Authorization: Bearer <token>) with Descope SDK
-        and convert claims into our normalized principal.
+        Refresh an expired session using the refresh token.
+        
+        Args:
+            refresh_token: The refresh token
+            
+        Returns:
+            JWT response with new session token
+            
+        Raises:
+            DescopeAuthError: If refresh fails
         """
-        if not token:
-            raise DescopeAuthError("Missing bearer token")
-
-        # If Descope is not available, create a mock user for development
         if not self.client:
-            return UserPrincipal(
-                user_id="dev-user",
-                login_id="dev@example.com",
-                email="dev@example.com",
-                name="Development User",
-                roles=["admin"],
-                scopes=["*"],
-                token=token
-            )
-
-        try:
-            # The SDK exposes token/session validation. Depending on your auth flow you may use:
-            # - validate_session(session_token)  (if using session tokens)
-            # - validate_jwt(jwt)               (if using plain JWTs)
-            # We attempt validate_session first, then fallback to validate_jwt.
-            claims: Optional[Dict[str, Any]] = None
-            if hasattr(self.client, "validate_session"):
-                claims = self.client.validate_session(token)  # type: ignore[attr-defined]
-            if not claims and hasattr(self.client, "validate_jwt"):
-                claims = self.client.validate_jwt(token)  # type: ignore[attr-defined]
-            if not claims:
-                # Some SDKs return object with 'claims' attribute; try to be resilient
-                if hasattr(self.client, "validate"):  # generic fallback
-                    result = self.client.validate(token)  # type: ignore[attr-defined]
-                    claims = getattr(result, "claims", None)
-
-            if not claims or not isinstance(claims, dict):
-                raise DescopeAuthError("Token validation failed")
-
-            return self._claims_to_principal(token, claims)
-
-        except DescopeAuthError:
-            raise
-        except Exception as exc:
-            # Don't leak internals to client
-            logger.exception(f"Token validation failed: {exc}")
-            raise DescopeAuthError("Token validation failed")
-
-    def validate_roles(self, jwt_response: Dict[str, Any], required_roles: List[str]) -> bool:
-        """Validate if user has any of the required roles."""
-        if not self.client:
-            # Mock validation - allow all roles in development
-            return True
+            raise DescopeAuthError("Descope client not configured")
         
         try:
-            return self.client.validate_roles(jwt_response, required_roles)
+            logger.info("🔄 Refreshing session...")
+            jwt_response = self.client.refresh_session(refresh_token)
+            logger.info("✅ Session refresh successful")
+            return jwt_response
+            
+        except AuthException as e:
+            logger.error(f"❌ Session refresh failed: {e}")
+            raise DescopeAuthError(f"Session refresh error: {e}")
         except Exception as e:
-            logger.error(f"❌ Role validation error: {e}")
-            return False
-
-    def validate_permissions(self, jwt_response: Dict[str, Any], required_permissions: List[str]) -> bool:
-        """Validate if user has any of the required permissions."""
-        if not self.client:
-            # Mock validation - allow all permissions in development
-            return True
-        
-        try:
-            return self.client.validate_permissions(jwt_response, required_permissions)
-        except Exception as e:
-            logger.error(f"❌ Permission validation error: {e}")
-            return False
-
-    def validate_tenant_roles(self, jwt_response: Dict[str, Any], tenant_id: str, required_roles: List[str]) -> bool:
-        """Validate if user has any of the required roles for a specific tenant."""
-        if not self.client:
-            # Mock validation - allow all tenant roles in development
-            return True
-        
-        try:
-            return self.client.validate_tenant_roles(jwt_response, tenant_id, required_roles)
-        except Exception as e:
-            logger.error(f"❌ Tenant role validation error: {e}")
-            return False
-
-    def validate_tenant_permissions(self, jwt_response: Dict[str, Any], tenant_id: str, required_permissions: List[str]) -> bool:
-        """Validate if user has any of the required permissions for a specific tenant."""
-        if not self.client:
-            # Mock validation - allow all tenant permissions in development
-            return True
-        
-        try:
-            return self.client.validate_tenant_permissions(jwt_response, tenant_id, required_permissions)
-        except Exception as e:
-            logger.error(f"❌ Tenant permission validation error: {e}")
-            return False
-
-    def get_matched_roles(self, jwt_response: Dict[str, Any], roles_to_match: List[str]) -> List[str]:
-        """Get roles from JWT that match the specified roles list."""
-        if not self.client:
-            # Mock - return intersection of available roles and requested roles
-            return list(set(settings.AVAILABLE_ROLES) & set(roles_to_match))
-        
-        try:
-            return self.client.get_matched_roles(jwt_response, roles_to_match)
-        except Exception as e:
-            logger.error(f"❌ Error getting matched roles: {e}")
-            return []
-
-    def get_matched_permissions(self, jwt_response: Dict[str, Any], permissions_to_match: List[str]) -> List[str]:
-        """Get permissions from JWT that match the specified permissions list."""
-        if not self.client:
-            # Mock - return intersection of available permissions and requested permissions
-            return list(set(settings.AVAILABLE_PERMISSIONS) & set(permissions_to_match))
-        
-        try:
-            return self.client.get_matched_permissions(jwt_response, permissions_to_match)
-        except Exception as e:
-            logger.error(f"❌ Error getting matched permissions: {e}")
-            return []
-
-    def get_matched_tenant_roles(self, jwt_response: Dict[str, Any], tenant_id: str, roles_to_match: List[str]) -> List[str]:
-        """Get tenant-specific roles from JWT that match the specified roles list."""
-        if not self.client:
-            # Mock - return intersection of available roles and requested roles
-            return list(set(settings.AVAILABLE_ROLES) & set(roles_to_match))
-        
-        try:
-            return self.client.get_matched_tenant_roles(jwt_response, tenant_id, roles_to_match)
-        except Exception as e:
-            logger.error(f"❌ Error getting matched tenant roles: {e}")
-            return []
-
-    def get_matched_tenant_permissions(self, jwt_response: Dict[str, Any], tenant_id: str, permissions_to_match: List[str]) -> List[str]:
-        """Get tenant-specific permissions from JWT that match the specified permissions list."""
-        if not self.client:
-            # Mock - return intersection of available permissions and requested permissions
-            return list(set(settings.AVAILABLE_PERMISSIONS) & set(permissions_to_match))
-        
-        try:
-            return self.client.get_matched_tenant_permissions(jwt_response, tenant_id, permissions_to_match)
-        except Exception as e:
-            logger.error(f"❌ Error getting matched tenant permissions: {e}")
-            return []
+            logger.error(f"❌ Unexpected error during session refresh: {e}")
+            raise DescopeAuthError(f"Session refresh error: {e}")
 
     def logout(self, refresh_token: str) -> bool:
-        """Logout user by invalidating the refresh token."""
+        """
+        Logout user from current session.
+        
+        Args:
+            refresh_token: The refresh token
+            
+        Returns:
+            True if logout successful
+            
+        Raises:
+            DescopeAuthError: If logout fails
+        """
         if not self.client:
-            logger.info("🔓 Mock logout successful")
-            return True
+            raise DescopeAuthError("Descope client not configured")
         
         try:
+            logger.info("🔄 Logging out user...")
             self.client.logout(refresh_token)
-            logger.info("🔓 User logged out successfully")
+            logger.info("✅ User logged out successfully")
             return True
+        
         except AuthException as e:
             logger.error(f"❌ Logout failed: {e}")
-            return False
+            raise DescopeAuthError(f"Logout error: {e}")
         except Exception as e:
-            logger.error(f"❌ Unexpected logout error: {e}")
+            logger.error(f"❌ Unexpected error during logout: {e}")
+            raise DescopeAuthError(f"Logout error: {e}")
+
+    def extract_user_principal(self, jwt_response: Dict[str, Any], session_token: str) -> UserPrincipal:
+        """
+        Extract user principal from JWT response.
+        
+        Args:
+            jwt_response: The validated JWT response
+            session_token: The original session token
+            
+        Returns:
+            UserPrincipal with user data and permissions
+        """
+        try:
+            # Extract basic user information
+            user_id = jwt_response.get("sub") or jwt_response.get("userId")
+            login_id = jwt_response.get("loginId") or jwt_response.get("email") or jwt_response.get("login_id")
+            email = jwt_response.get("email")
+            name = jwt_response.get("name") or jwt_response.get("user_name")
+            tenant = jwt_response.get("tenant") or jwt_response.get("tenantId")
+            
+            # Use Descope SDK methods to get matched roles and permissions
+            logger.info(f"🔍 Tenant from JWT: {tenant}")
+            
+            # Get matched roles from available roles in system
+            roles = self.get_matched_roles(jwt_response, settings.AVAILABLE_ROLES)
+            
+            # Get matched permissions from available permissions in system
+            permissions = self.get_matched_permissions(jwt_response, settings.AVAILABLE_PERMISSIONS)
+            
+            # If no permissions found but we have roles, derive from role mappings
+            if not permissions and roles:
+                logger.info(f"🔍 No direct permissions found, deriving from roles: {roles}")
+                derived_permissions = []
+                for role in roles:
+                    role_permissions = settings.ROLE_PERMISSIONS.get(role, [])
+                    logger.info(f"🔍 Role '{role}' maps to permissions: {role_permissions}")
+                    derived_permissions.extend(role_permissions)
+                
+                # Get matched permissions from derived permissions
+                if derived_permissions:
+                    permissions = self.get_matched_permissions(jwt_response, list(set(derived_permissions)))
+            
+            logger.info(f"🔍 Final matched user roles: {roles}")
+            logger.info(f"🔍 Final matched user permissions: {permissions}")
+            
+            return UserPrincipal(
+                user_id=str(user_id) if user_id else "unknown",
+                login_id=login_id or "unknown",
+                email=email or "",
+                name=name or "User",
+                tenant=tenant or "default",
+                roles=roles,
+                permissions=permissions,
+                scopes=[],  # Scopes can be added if needed
+                token=session_token,
+                claims={k: str(v) for k, v in jwt_response.items() if isinstance(k, str)}
+            )
+            
+        except Exception as e:
+            logger.error(f"❌ Error extracting user principal: {e}")
+            raise DescopeAuthError(f"Error extracting user data: {e}")
+
+    def validate_permissions(self, jwt_response: Dict[str, Any], required_permissions: List[str]) -> bool:
+        """
+        Validate if user has any of the required permissions using Descope SDK.
+        
+        Args:
+            jwt_response: The validated JWT response from validate_session
+            required_permissions: List of required permissions
+            
+        Returns:
+            True if user has at least one required permission
+        """
+        if not self.client:
+            logger.error("❌ Descope client not configured for permission validation")
             return False
+        
+        try:
+            logger.info(f"🔍 Validating permissions: {required_permissions}")
+            is_permission_valid = self.client.validate_permissions(jwt_response, required_permissions)
+            
+            if is_permission_valid:
+                logger.info("✅ These permissions are valid for user")
+            else:
+                logger.info("❌ These permissions are invalid for user")
+                
+            return is_permission_valid
+            
+        except Exception as e:
+            logger.error(f"❌ Could not confirm if permissions are valid - error prior to confirmation: {e}")
+            return False
+
+    def validate_roles(self, jwt_response: Dict[str, Any], required_roles: List[str]) -> bool:
+        """
+        Validate if user has any of the required roles using Descope SDK.
+        
+        Args:
+            jwt_response: The validated JWT response from validate_session
+            required_roles: List of required roles
+            
+        Returns:
+            True if user has at least one required role
+        """
+        if not self.client:
+            logger.error("❌ Descope client not configured for role validation")
+            return False
+        
+        try:
+            logger.info(f"🔍 Validating roles: {required_roles}")
+            is_role_valid = self.client.validate_roles(jwt_response, required_roles)
+            
+            if is_role_valid:
+                logger.info("✅ These roles are valid for user")
+            else:
+                logger.info("❌ These roles are invalid for user")
+                
+            return is_role_valid
+            
+        except Exception as e:
+            logger.error(f"❌ Could not confirm if roles are valid - error prior to confirmation: {e}")
+            return False
+
+    def get_matched_permissions(self, jwt_response: Dict[str, Any], permissions_to_match: List[str]) -> List[str]:
+        """
+        Retrieve the permissions from JWT top level claims that match the specified permissions list.
+        
+        Args:
+            jwt_response: JWT parsed info containing the permissions
+            permissions_to_match: List of permissions to match against the JWT claims
+            
+        Returns:
+            An array of permissions that are both in the JWT claims and the specified list.
+            Returns an empty array if no matches are found.
+        """
+        if not self.client:
+            logger.error("❌ Descope client not configured for permission matching")
+            return []
+        
+        try:
+            logger.info(f"🔍 Getting matched permissions for: {permissions_to_match}")
+            matched_permissions = self.client.get_matched_permissions(jwt_response, permissions_to_match)
+            logger.info(f"✅ Matched permissions: {matched_permissions}")
+            return matched_permissions
+            
+        except Exception as e:
+            logger.error(f"❌ Could not get matched permissions - error: {e}")
+            return []
+
+    def get_matched_roles(self, jwt_response: Dict[str, Any], roles_to_match: List[str]) -> List[str]:
+        """
+        Retrieve the roles from JWT top level claims that match the specified roles list.
+        
+        Args:
+            jwt_response: JWT parsed info containing the roles
+            roles_to_match: List of roles to match against the JWT claims
+            
+        Returns:
+            An array of roles that are both in the JWT claims and the specified list.
+            Returns an empty array if no matches are found.
+        """
+        if not self.client:
+            logger.error("❌ Descope client not configured for role matching")
+            return []
+        
+        try:
+            logger.info(f"🔍 Getting matched roles for: {roles_to_match}")
+            matched_roles = self.client.get_matched_roles(jwt_response, roles_to_match)
+            logger.info(f"✅ Matched roles: {matched_roles}")
+            return matched_roles
+            
+        except Exception as e:
+            logger.error(f"❌ Could not get matched roles - error: {e}")
+            return []
+
+
+# Global instance
+descope_client = DescopeAuthClient()

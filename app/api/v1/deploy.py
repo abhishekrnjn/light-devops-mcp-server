@@ -8,7 +8,7 @@ router = APIRouter()
 @router.post(
     "/deploy",
     response_model=DeployResponse,
-    dependencies=[Depends(require_permissions(["deploy_staging", "deploy_production"], mode="any"))]
+    dependencies=[Depends(require_permissions(["deploy_staging", "deploy_production"]))]
 )
 async def deploy_service(
     request: DeployRequest,

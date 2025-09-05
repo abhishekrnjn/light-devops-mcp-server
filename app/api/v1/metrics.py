@@ -8,8 +8,8 @@ router = APIRouter()
 @router.get(
     "/metrics",
     response_model=List[MetricResponse],
-    dependencies=[Depends(require_permissions(["read_metric"]))]
+    dependencies=[Depends(require_permissions(["read_metrics"]))]
 )
 async def get_metrics(service = Depends(get_metrics_service)):
-    """Get system metrics - requires 'read_metric' permission."""
+    """Get system metrics - requires 'read_metrics' permission."""
     return await service.get_recent_metrics()
