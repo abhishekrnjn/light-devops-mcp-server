@@ -1,6 +1,6 @@
 [project]
 name = "devops-mcp-server"
-version = "0.1.0"
+version = "1.0.0"
 description = "Autonomous DevOps MCP server with Descope + Cequence integration"
 authors = [{ name = "Your Name", email = "you@example.com" }]
 readme = "README.md"

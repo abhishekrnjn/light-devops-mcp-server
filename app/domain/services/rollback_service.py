@@ -4,8 +4,8 @@ class RollbackService:
     def __init__(self, client: RollbackClient):
         self.client = client
 
-    async def rollback(self, deployment_id: str, reason: str):
-        rollback = await self.client.rollback_deployment(deployment_id, reason)
+    async def rollback(self, deployment_id: str, reason: str, environment: str = "staging"):
+        rollback = await self.client.rollback_deployment(deployment_id, reason, environment)
         # business rule: validate reason length (as example)
         if len(reason.strip()) < 5:
             raise ValueError("Rollback reason must be at least 5 characters")

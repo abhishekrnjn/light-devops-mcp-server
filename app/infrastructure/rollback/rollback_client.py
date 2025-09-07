@@ -3,13 +3,13 @@ from datetime import datetime, timezone
 from app.domain.entities.rollback import Rollback
 
 class RollbackClient:
-    async def rollback_deployment(self, deployment_id: str, reason: str) -> Rollback:
-        # Mock rollback
+    async def rollback_deployment(self, deployment_id: str, reason: str, environment: str = "staging") -> Rollback:
+        # Mock rollback with environment awareness
         return Rollback(
             rollback_id=str(uuid.uuid4()),
             deployment_id=deployment_id,
             status="SUCCESS",
-            reason=reason,
+            reason=f"{reason} (Environment: {environment})",
             timestamp=datetime.now(timezone.utc)
         )
     

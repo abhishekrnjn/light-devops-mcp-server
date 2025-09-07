@@ -18,30 +18,36 @@ class Settings:
     AUTH_ALLOW_ANONYMOUS: bool = os.getenv("AUTH_ALLOW_ANONYMOUS", "false").lower() == "true"
     AUTH_ACCEPT_COOKIE_NAME: str = os.getenv("AUTH_ACCEPT_COOKIE_NAME", "DS")
     
+    # Cequence Gateway Configuration
+    CEQUENCE_GATEWAY_URL: str = os.getenv("CEQUENCE_GATEWAY_URL", "https://ztaip-2df45991-4xp4r634bq-uc.a.run.app/mcp")
+    CEQUENCE_ENABLED: bool = os.getenv("CEQUENCE_ENABLED", "true").lower() == "true"
+    
     # RBAC Configuration
     # Available roles in the system
     AVAILABLE_ROLES: List[str] = [
+        "New_user",
         "Observer", 
         "developer", 
-        "developer_prod_access"
+        "Developer_prod_access"
     ]
     
     # Available permissions in the system
     AVAILABLE_PERMISSIONS: List[str] = [
-        "read_metrics",      # Fixed: was read_metric
+        "read_metrics",      
         "read_logs", 
         "read_deployments",  # View deployment history
         "read_rollbacks",    # View rollback history
         "deploy_staging",
         "deploy_production",
-        "rollback_write"     # Fixed: was rollback.write
+        "rollback_staging",  
+        "rollback_production" # Rollback production deployments
     ]
     
     # Role to permission mapping for reference
     ROLE_PERMISSIONS = {
         "Observer": ["read_metrics", "read_logs"],
-        "developer": ["read_metrics", "read_logs", "read_deployments", "deploy_staging"],
-        "developer_prod_access": ["read_metrics", "read_logs", "read_deployments", "read_rollbacks", "deploy_staging", "deploy_production", "rollback_write"]
+        "developer": ["read_metrics", "read_logs", "read_deployments", "deploy_staging", "rollback_staging"],
+        "Developer_prod_access": ["read_metrics", "read_logs", "read_deployments", "read_rollbacks", "deploy_staging", "deploy_production", "rollback_staging", "rollback_production"]
     }
 
 settings = Settings()

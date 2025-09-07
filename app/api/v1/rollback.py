@@ -6,16 +6,28 @@ from app.dependencies import require_permissions, get_rollback_service
 router = APIRouter()
 
 @router.post(
-    "/rollback",
+    "/rollback/staging",
     response_model=RollbackResponse,
-    dependencies=[Depends(require_permissions(["rollback_write"]))]
+    dependencies=[Depends(require_permissions(["rollback_staging"]))]
 )
-async def rollback_deployment(
+async def rollback_staging_deployment(
     request: RollbackRequest,
     service = Depends(get_rollback_service)
 ):
-    """Rollback a deployment - requires 'rollback_write' permission."""
-    return await service.rollback(request.deployment_id, request.reason)
+    """Rollback a staging deployment - requires 'rollback_staging' permission."""
+    return await service.rollback(request.deployment_id, request.reason, environment="staging")
+
+@router.post(
+    "/rollback/production",
+    response_model=RollbackResponse,
+    dependencies=[Depends(require_permissions(["rollback_production"]))]
+)
+async def rollback_production_deployment(
+    request: RollbackRequest,
+    service = Depends(get_rollback_service)
+):
+    """Rollback a production deployment - requires 'rollback_production' permission."""
+    return await service.rollback(request.deployment_id, request.reason, environment="production")
 
 @router.get(
     "/rollbacks",

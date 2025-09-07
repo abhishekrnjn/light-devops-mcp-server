@@ -314,14 +314,32 @@ async def handle_list_tools() -> List[Tool]:
             }
         ),
         Tool(
-            name="rollback_deployment",
-            description="Rollback a deployment to previous version",
+            name="rollback_staging",
+            description="Rollback a staging deployment to previous version",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "deployment_id": {
                         "type": "string",
-                        "description": "ID of the deployment to rollback"
+                        "description": "ID of the staging deployment to rollback"
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "Reason for the rollback"
+                    }
+                },
+                "required": ["deployment_id", "reason"]
+            }
+        ),
+        Tool(
+            name="rollback_production",
+            description="Rollback a production deployment to previous version",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "deployment_id": {
+                        "type": "string",
+                        "description": "ID of the production deployment to rollback"
                     },
                     "reason": {
                         "type": "string",
@@ -444,18 +462,38 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[TextCon
                 )
             ]
         
-        elif name == "rollback_deployment":
+        elif name == "rollback_staging":
             deployment_id = arguments["deployment_id"]
             reason = arguments["reason"]
             
-            # Perform rollback
-            result = await rollback_service.rollback(deployment_id, reason)
+            # Perform staging rollback
+            result = await rollback_service.rollback(deployment_id, reason, environment="staging")
             
             return [
                 TextContent(
                     type="text",
-                    text=f"🔄 Rollback initiated successfully!\n\n"
+                    text=f"🔄 Staging rollback initiated successfully!\n\n"
                          f"Deployment ID: {deployment_id}\n"
+                         f"Environment: staging\n"
+                         f"Reason: {result.reason}\n"
+                         f"Status: {result.status}\n"
+                         f"Timestamp: {result.timestamp}"
+                )
+            ]
+        
+        elif name == "rollback_production":
+            deployment_id = arguments["deployment_id"]
+            reason = arguments["reason"]
+            
+            # Perform production rollback
+            result = await rollback_service.rollback(deployment_id, reason, environment="production")
+            
+            return [
+                TextContent(
+                    type="text",
+                    text=f"🔄 Production rollback initiated successfully!\n\n"
+                         f"Deployment ID: {deployment_id}\n"
+                         f"Environment: production\n"
                          f"Reason: {result.reason}\n"
                          f"Status: {result.status}\n"
                          f"Timestamp: {result.timestamp}"

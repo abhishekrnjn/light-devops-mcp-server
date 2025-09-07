@@ -160,3 +160,7 @@ Desktop.ini
 temp/
 tmp/
 cache/
+
+# OpenAPI generated files
+openapi.json
+openapi.yaml
