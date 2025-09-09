@@ -25,7 +25,7 @@ class CequenceClient:
     
     def __init__(self):
         self.gateway_url = settings.CEQUENCE_GATEWAY_URL
-        self.enabled = settings.CEQUENCE_ENABLED
+        self.enabled = settings.CEQUENCE_ENABLED and self.gateway_url is not None
         self.client = httpx.AsyncClient(timeout=30.0)
         self.session_id = None
         self.initialized = False
@@ -34,7 +34,12 @@ class CequenceClient:
         if self.enabled:
             logger.info(f"🌐 Cequence Gateway enabled: {self.gateway_url}")
         else:
-            logger.info("🔧 Cequence Gateway disabled - direct mode")
+            if not settings.CEQUENCE_ENABLED:
+                logger.info("🔧 Cequence Gateway disabled - direct mode")
+            elif self.gateway_url is None:
+                logger.warning("⚠️ Cequence Gateway URL not configured - direct mode")
+            else:
+                logger.info("🔧 Cequence Gateway disabled - direct mode")
     
     async def _ensure_initialized(self):
         """Ensure the MCP gateway is initialized with proper session management."""
@@ -219,6 +224,8 @@ class CequenceClient:
             }
         }
         
+        logger.info(f"🔍 MCP request for logs: {json.dumps(mcp_request, indent=2)}")
+        
         request_headers = self._get_mcp_headers()
         # Forward authorization headers
         if "authorization" in headers:
@@ -226,11 +233,21 @@ class CequenceClient:
         if "cookie" in headers:
             request_headers["Cookie"] = headers["cookie"]
         
-        return await self.client.post(
+        logger.info(f"🔍 Request headers: {request_headers}")
+        logger.info(f"🔍 Gateway URL: {self.gateway_url}")
+        
+        response = await self.client.post(
             self.gateway_url,
             json=mcp_request,
             headers=request_headers
         )
+        
+        logger.info(f"🔍 Response status: {response.status_code}")
+        logger.info(f"🔍 Response headers: {dict(response.headers)}")
+        if response.status_code != 200:
+            logger.warning(f"🔍 Response content: {response.text[:500]}")
+        
+        return response
     
     async def get_metrics(
         self,
@@ -259,6 +276,8 @@ class CequenceClient:
             }
         }
         
+        logger.info(f"🔍 MCP request for metrics: {json.dumps(mcp_request, indent=2)}")
+        
         request_headers = self._get_mcp_headers()
         # Forward authorization headers
         if "authorization" in headers:
@@ -266,11 +285,21 @@ class CequenceClient:
         if "cookie" in headers:
             request_headers["Cookie"] = headers["cookie"]
         
-        return await self.client.post(
+        logger.info(f"🔍 Request headers: {request_headers}")
+        logger.info(f"🔍 Gateway URL: {self.gateway_url}")
+        
+        response = await self.client.post(
             self.gateway_url,
             json=mcp_request,
             headers=request_headers
         )
+        
+        logger.info(f"🔍 Response status: {response.status_code}")
+        logger.info(f"🔍 Response headers: {dict(response.headers)}")
+        if response.status_code != 200:
+            logger.warning(f"🔍 Response content: {response.text[:500]}")
+        
+        return response
     
     async def deploy_service(
         self,

@@ -905,6 +905,263 @@ async def get_mcp_resources_metrics_tool(
             "error": str(e)
         }
 
+@app.post("/mcp/tools/postMcpToolsDeployService")
+async def post_mcp_tools_deploy_service_tool(
+    tool_request: ToolCallRequest,
+    request: Request,
+    user: UserPrincipal = Depends(get_current_user)
+):
+    """MCP tool endpoint for deploy service - called by Cequence Gateway."""
+    try:
+        # Extract arguments from the tool request
+        arguments = tool_request.arguments or {}
+        service_name = arguments.get("service_name")
+        version = arguments.get("version")
+        environment = arguments.get("environment")
+        
+        logger.info(f"🔧 MCP Tool: postMcpToolsDeployService called with service_name={service_name}, version={version}, environment={environment}")
+        
+        # Validate required parameters
+        if not service_name or not version or not environment:
+            raise ValueError("Missing required parameters: service_name, version, environment")
+        
+        # Check environment-specific permissions
+        if environment == "production":
+            check_permission(user, "deploy_production", "deploy to production")
+        elif environment == "staging":
+            check_permission(user, "deploy_staging", "deploy to staging")
+        
+        # Perform deployment
+        deployment, http_status, json_response = await deploy_service.deploy(service_name, version, environment)
+        
+        return {
+            "tool": "postMcpToolsDeployService",
+            "success": True,
+            "result": {
+                "deployment_id": deployment.id,
+                "service_name": deployment.service_name,
+                "version": deployment.version,
+                "environment": deployment.environment,
+                "status": deployment.status,
+                "timestamp": deployment.timestamp.isoformat(),
+                "http_status": http_status,
+                "response": json_response
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error in postMcpToolsDeployService: {e}")
+        return {
+            "tool": "postMcpToolsDeployService",
+            "success": False,
+            "error": str(e)
+        }
+
+@app.post("/mcp/tools/postMcpToolsRollbackDeployment")
+async def post_mcp_tools_rollback_deployment_tool(
+    tool_request: ToolCallRequest,
+    request: Request,
+    user: UserPrincipal = Depends(get_current_user)
+):
+    """MCP tool endpoint for rollback deployment - called by Cequence Gateway."""
+    try:
+        # Extract arguments from the tool request
+        arguments = tool_request.arguments or {}
+        deployment_id = arguments.get("deployment_id")
+        reason = arguments.get("reason")
+        environment = arguments.get("environment")
+        
+        logger.info(f"🔧 MCP Tool: postMcpToolsRollbackDeployment called with deployment_id={deployment_id}, reason={reason}, environment={environment}")
+        
+        # Validate required parameters
+        if not deployment_id or not reason or not environment:
+            raise ValueError("Missing required parameters: deployment_id, reason, environment")
+        
+        # Check environment-specific permissions
+        if environment == "production":
+            check_permission(user, "rollback_production", "rollback production")
+        elif environment == "staging":
+            check_permission(user, "rollback_staging", "rollback staging")
+        
+        # Perform rollback
+        rollback, http_status, json_response = await rollback_service.rollback(deployment_id, reason, environment)
+        
+        return {
+            "tool": "postMcpToolsRollbackDeployment",
+            "success": True,
+            "result": {
+                "rollback_id": rollback.id,
+                "deployment_id": rollback.deployment_id,
+                "reason": rollback.reason,
+                "environment": rollback.environment,
+                "status": rollback.status,
+                "timestamp": rollback.timestamp.isoformat(),
+                "http_status": http_status,
+                "response": json_response
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error in postMcpToolsRollbackDeployment: {e}")
+        return {
+            "tool": "postMcpToolsRollbackDeployment",
+            "success": False,
+            "error": str(e)
+        }
+
+@app.post("/mcp/tools/get")
+async def get_tool(
+    tool_request: ToolCallRequest,
+    user: UserPrincipal = Depends(get_current_user)
+):
+    """MCP tool endpoint for server information - called by Cequence Gateway."""
+    try:
+        logger.info("🔧 MCP Tool: get called")
+        
+        return {
+            "tool": "get",
+            "success": True,
+            "result": {
+                "name": "DevOps MCP HTTP Server",
+                "version": "0.1.0",
+                "protocol": "MCP over HTTP",
+                "description": "Simplified MCP server for DevOps operations",
+                "capabilities": {
+                    "resources": len(MCP_RESOURCES),
+                    "tools": len(MCP_TOOLS),
+                    "streaming": False
+                },
+                "resources": {
+                    "logs": "/mcp/resources/logs - System logs with optional filtering",
+                    "metrics": "/mcp/resources/metrics - Performance metrics with optional limit"
+                },
+                "tools": {
+                    "deploy_service": "/mcp/tools/deploy_service - Deploy a service",
+                    "rollback_deployment": "/mcp/tools/rollback_deployment - Rollback a deployment (staging or production)",
+                    "authenticate_user": "/mcp/tools/authenticate_user - Authenticate with Descope"
+                }
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error in get: {e}")
+        return {
+            "tool": "get",
+            "success": False,
+            "error": str(e)
+        }
+
+@app.post("/mcp/tools/getMcpResources")
+async def get_mcp_resources_tool(
+    tool_request: ToolCallRequest,
+    user: UserPrincipal = Depends(get_current_user)
+):
+    """MCP tool endpoint for listing MCP resources - called by Cequence Gateway."""
+    try:
+        logger.info("🔧 MCP Tool: getMcpResources called")
+        
+        return {
+            "tool": "getMcpResources",
+            "success": True,
+            "result": {
+                "resources": [resource.dict() for resource in MCP_RESOURCES]
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error in getMcpResources: {e}")
+        return {
+            "tool": "getMcpResources",
+            "success": False,
+            "error": str(e)
+        }
+
+@app.post("/mcp/tools/getMcpTools")
+async def get_mcp_tools_tool(
+    tool_request: ToolCallRequest,
+    user: UserPrincipal = Depends(get_current_user)
+):
+    """MCP tool endpoint for listing MCP tools - called by Cequence Gateway."""
+    try:
+        logger.info("🔧 MCP Tool: getMcpTools called")
+        
+        return {
+            "tool": "getMcpTools",
+            "success": True,
+            "result": {
+                "tools": [tool.dict() for tool in MCP_TOOLS]
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error in getMcpTools: {e}")
+        return {
+            "tool": "getMcpTools",
+            "success": False,
+            "error": str(e)
+        }
+
+@app.post("/mcp/tools/postMcpToolsAuthenticateUser")
+async def post_mcp_tools_authenticate_user_tool(
+    tool_request: ToolCallRequest,
+    request: Request,
+    user: UserPrincipal = Depends(get_current_user)
+):
+    """MCP tool endpoint for user authentication - called by Cequence Gateway."""
+    try:
+        # Extract arguments from the tool request
+        arguments = tool_request.arguments or {}
+        session_token = arguments.get("session_token")
+        refresh_token = arguments.get("refresh_token")
+        
+        logger.info(f"🔧 MCP Tool: postMcpToolsAuthenticateUser called with session_token={'***' if session_token else 'None'}")
+        
+        # Validate required parameters
+        if not session_token:
+            raise ValueError("Missing required parameter: session_token")
+        
+        # Authenticate user using Descope
+        try:
+            jwt_response = descope_client.validate_session(
+                session_token=session_token,
+                refresh_token=refresh_token
+            )
+            
+            # Extract user information from JWT response
+            user_principal = descope_client.extract_user_principal(jwt_response)
+            
+            return {
+                "tool": "postMcpToolsAuthenticateUser",
+                "success": True,
+                "result": {
+                    "user_id": user_principal.user_id,
+                    "login_id": user_principal.login_id,
+                    "email": user_principal.email,
+                    "name": user_principal.name,
+                    "tenant": user_principal.tenant,
+                    "roles": user_principal.roles,
+                    "permissions": user_principal.permissions,
+                    "scopes": user_principal.scopes,
+                    "authenticated": True
+                }
+            }
+            
+        except Exception as auth_error:
+            logger.error(f"❌ Authentication failed: {auth_error}")
+            return {
+                "tool": "postMcpToolsAuthenticateUser",
+                "success": False,
+                "error": f"Authentication failed: {str(auth_error)}"
+            }
+        
+    except Exception as e:
+        logger.error(f"❌ Error in postMcpToolsAuthenticateUser: {e}")
+        return {
+            "tool": "postMcpToolsAuthenticateUser",
+            "success": False,
+            "error": str(e)
+        }
+
 
 if __name__ == "__main__":
     import uvicorn
@@ -913,12 +1170,18 @@ if __name__ == "__main__":
     print("📋 Resources (2):")
     print("   - logs    - System logs with filtering")
     print("   - metrics - Performance metrics")
-    print("🔧 Tools (5):")
+    print("🔧 Tools (12):")
     print("   - deploy_service      - Deploy a service")
     print("   - rollback_deployment - Rollback a deployment (staging or production)")
     print("   - authenticate_user   - Authenticate with Descope")
     print("   - getMcpResourcesLogs - Get system logs (MCP tool)")
     print("   - getMcpResourcesMetrics - Get performance metrics (MCP tool)")
+    print("   - postMcpToolsDeployService - Deploy service (Cequence MCP tool)")
+    print("   - postMcpToolsRollbackDeployment - Rollback deployment (Cequence MCP tool)")
+    print("   - get - Server information (Cequence MCP tool)")
+    print("   - getMcpResources - List MCP resources (Cequence MCP tool)")
+    print("   - getMcpTools - List MCP tools (Cequence MCP tool)")
+    print("   - postMcpToolsAuthenticateUser - Authenticate user (Cequence MCP tool)")
     print("📡 Endpoints:")
     print("   - GET  /mcp/resources - List resources")
     print("   - GET  /mcp/resources/{path} - Read resource")

@@ -19,7 +19,7 @@ class Settings:
     AUTH_ACCEPT_COOKIE_NAME: str = os.getenv("AUTH_ACCEPT_COOKIE_NAME", "DS")
     
     # Cequence Gateway Configuration
-    CEQUENCE_GATEWAY_URL: str = os.getenv("CEQUENCE_GATEWAY_URL", "https://ztaip-2df45991-4xp4r634bq-uc.a.run.app/mcp")
+    CEQUENCE_GATEWAY_URL: Optional[str] = os.getenv("CEQUENCE_GATEWAY_URL")
     CEQUENCE_ENABLED: bool = os.getenv("CEQUENCE_ENABLED", "true").lower() == "true"
     
     # Datadog Configuration
