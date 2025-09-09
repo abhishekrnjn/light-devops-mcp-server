@@ -25,7 +25,14 @@ class DatadogLogsClient(BaseDatadogClient):
             return self._get_mock_logs(level)
         
         query = self._build_query(level)
-        payload = self._build_payload(query, limit or self._default_limit)
+        effective_limit = limit or self._default_limit
+        
+        # For Cequence mode, restrict to smaller limits to ensure single call
+        if limit is not None and limit <= 10:
+            logger.info(f"🔧 CEQUENCE MODE: Restricting logs query to {limit} entries for single call")
+            effective_limit = limit
+        
+        payload = self._build_payload(query, effective_limit)
         
         try:
             logger.info(f"Fetching logs from Datadog with query: {query}")

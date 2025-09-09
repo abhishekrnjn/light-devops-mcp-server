@@ -34,7 +34,7 @@ class DatadogMetricsClient(BaseDatadogClient):
             ("queue_size", "count")
         ]
     
-    async def fetch_data(self, user_permissions: List[str] = None, fetch_historical: bool = False) -> List[Metric]:
+    async def fetch_data(self, user_permissions: List[str] = None, fetch_historical: bool = False, limit: int = None) -> List[Metric]:
         """Fetch metrics from Datadog API with fallback to mock data."""
         if not self._is_api_available():
             logger.warning("Datadog API keys not available, using mock data")
@@ -46,7 +46,7 @@ class DatadogMetricsClient(BaseDatadogClient):
             return self._cache
         
         try:
-            return await self._fetch_metrics_from_api(fetch_historical)
+            return await self._fetch_metrics_from_api(fetch_historical, limit)
         except Exception as e:
             logger.error(f"Error fetching metrics from Datadog: {e}, falling back to mock data")
             return self._get_mock_metrics()
@@ -56,17 +56,27 @@ class DatadogMetricsClient(BaseDatadogClient):
         return (self._cache and self._cache_timestamp and 
                 datetime.now(timezone.utc) - self._cache_timestamp < self._cache_ttl)
     
-    async def _fetch_metrics_from_api(self, fetch_historical: bool) -> List[Metric]:
+    async def _fetch_metrics_from_api(self, fetch_historical: bool, limit: int = None) -> List[Metric]:
         """Fetch metrics from Datadog API."""
         time_range = self._get_time_range(fetch_historical)
-        batch_query = self._build_batch_query()
         
-        logger.info(f"🚀 OPTIMIZED: Fetching {len(self._metrics_config)} metrics from Datadog in a SINGLE batch call (7-day range)")
-        logger.info(f"🔍 Batch query: {batch_query}")
+        # If limit is specified (Cequence mode), fetch only single metric to avoid breaking into multiple calls
+        if limit is not None and limit <= 1:
+            # Single metric call for Cequence Gateway compatibility
+            single_metric = self._metrics_config[0]  # Get the first (most important) metric
+            query = f"avg:{single_metric[0]}{{service:{self._service_name}}}"
+            logger.info(f"🔧 CEQUENCE MODE: Fetching SINGLE metric to avoid gateway breaking batch calls")
+            logger.info(f"🔍 Single query: {query}")
+        else:
+            # Normal batch query for direct mode
+            query = self._build_batch_query()
+            logger.info(f"🚀 OPTIMIZED: Fetching {len(self._metrics_config)} metrics from Datadog in a SINGLE batch call (7-day range)")
+            logger.info(f"🔍 Batch query: {query}")
+        
         logger.info(f"⏰ Time range: {time_range[0]} to {time_range[1]} (7 days)")
         
         params = {
-            "query": batch_query,
+            "query": query,
             "from": str(time_range[0]),
             "to": str(time_range[1])
         }
@@ -79,9 +89,9 @@ class DatadogMetricsClient(BaseDatadogClient):
         )
         
         if response.status_code == 200:
-            return self._handle_success_response(response, fetch_historical)
+            return self._handle_success_response(response, fetch_historical, limit)
         else:
-            logger.warning(f"Datadog batch API error {response.status_code}, falling back to mock data")
+            logger.warning(f"Datadog API error {response.status_code}, falling back to mock data")
             return self._get_mock_metrics()
     
     def _get_time_range(self, fetch_historical: bool) -> Tuple[int, int]:
@@ -104,22 +114,28 @@ class DatadogMetricsClient(BaseDatadogClient):
         ]
         return ",".join(metric_queries)
     
-    def _handle_success_response(self, response: httpx.Response, fetch_historical: bool) -> List[Metric]:
+    def _handle_success_response(self, response: httpx.Response, fetch_historical: bool, limit: int = None) -> List[Metric]:
         """Handle successful API response."""
         data = response.json()
         series = data.get("series", [])
         
         if series:
             all_metrics = self._process_series(series, fetch_historical)
-            logger.info(f"✅ Successfully fetched {len(all_metrics)} real metrics from Datadog in 1 API call (7-day range)")
             
-            # Update cache for non-historical requests
-            if not fetch_historical:
-                all_metrics = self._deduplicate_latest_metrics(all_metrics)
-                logger.info(f"📊 Deduplicated to {len(all_metrics)} latest metrics (one per type)")
-                self._update_cache(all_metrics)
-            
-            return all_metrics
+            # If limit is specified (Cequence mode), return only the requested number
+            if limit is not None and limit <= 1:
+                logger.info(f"✅ CEQUENCE MODE: Successfully fetched {len(all_metrics)} metric(s) from Datadog in 1 API call")
+                return all_metrics[:limit] if all_metrics else all_metrics
+            else:
+                logger.info(f"✅ Successfully fetched {len(all_metrics)} real metrics from Datadog in 1 API call (7-day range)")
+                
+                # Update cache for non-historical requests
+                if not fetch_historical:
+                    all_metrics = self._deduplicate_latest_metrics(all_metrics)
+                    logger.info(f"📊 Deduplicated to {len(all_metrics)} latest metrics (one per type)")
+                    self._update_cache(all_metrics)
+                
+                return all_metrics
         else:
             logger.info("No metrics data returned from Datadog batch query")
             return self._get_mock_metrics()

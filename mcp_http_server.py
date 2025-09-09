@@ -293,7 +293,8 @@ async def get_logs(
         check_permission(user, "read_logs", "read logs")
         logs = await log_service.get_recent_logs(
             user_permissions=user.permissions,
-            level=level
+            level=level,
+            limit=limit
         )
         
         # Apply limit
@@ -349,7 +350,8 @@ async def get_metrics(
     try:
         check_permission(user, "read_metrics", "read metrics")
         metrics = await metrics_service.get_recent_metrics(
-            user_permissions=user.permissions
+            user_permissions=user.permissions,
+            limit=limit
         )
         
         # Apply limit
@@ -418,7 +420,8 @@ async def read_resource(
             check_permission(user, "read_logs", "read logs")
             logs = await log_service.get_recent_logs(
                 user_permissions=user.permissions,
-                level=level
+                level=level,
+                limit=limit
             )
             
             # Apply limit
@@ -443,7 +446,8 @@ async def read_resource(
         elif resource_path == "metrics":
             check_permission(user, "read_metrics", "read metrics")
             metrics = await metrics_service.get_recent_metrics(
-                user_permissions=user.permissions
+                user_permissions=user.permissions,
+                limit=limit
             )
             
             # Apply limit
@@ -834,10 +838,11 @@ async def get_mcp_resources_logs_tool(
         # Check permissions
         check_permission(user, "read_logs", "read logs")
         
-        # Get logs using the log service
+        # Get logs using the log service (restrict to single call for Cequence compatibility)
         logs = await log_service.get_recent_logs(
             user_permissions=user.permissions,
-            level=level
+            level=level,
+            limit=limit
         )
         
         # Apply limit
@@ -880,10 +885,10 @@ async def get_mcp_resources_metrics_tool(
         # Check permissions
         check_permission(user, "read_metrics", "read metrics")
         
-        # Get metrics using the metrics service
+        # Get metrics using the metrics service (restrict to single call for Cequence compatibility)
         metrics = await metrics_service.get_recent_metrics(
             user_permissions=user.permissions,
-            limit=limit
+            limit=1  # Force single metric call to prevent Cequence gateway from breaking batch
         )
         
         return {
