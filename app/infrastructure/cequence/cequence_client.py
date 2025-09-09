@@ -120,8 +120,8 @@ class CequenceClient:
         else:
             logger.warning(f"⚠️ InitializedNotification failed: {response.status_code}")
     
-    def _get_mcp_headers(self, additional_headers: Optional[Dict[str, str]] = None) -> Dict[str, str]:
-        """Get standard MCP headers for requests, merging with additional headers."""
+    def _get_mcp_headers(self) -> Dict[str, str]:
+        """Get standard MCP headers for requests."""
         headers = {
             "Content-Type": "application/json",
             "Accept": "application/json, text/event-stream",
@@ -131,10 +131,6 @@ class CequenceClient:
         
         if self.session_id:
             headers["Mcp-Session-Id"] = self.session_id
-        
-        # Merge additional headers (like Authorization) if provided
-        if additional_headers:
-            headers.update(additional_headers)
             
         return headers
     
@@ -223,10 +219,17 @@ class CequenceClient:
             }
         }
         
+        request_headers = self._get_mcp_headers()
+        # Forward authorization headers
+        if "authorization" in headers:
+            request_headers["Authorization"] = headers["authorization"]
+        if "cookie" in headers:
+            request_headers["Cookie"] = headers["cookie"]
+        
         return await self.client.post(
             self.gateway_url,
             json=mcp_request,
-            headers=self._get_mcp_headers(headers)
+            headers=request_headers
         )
     
     async def get_metrics(
@@ -256,10 +259,17 @@ class CequenceClient:
             }
         }
         
+        request_headers = self._get_mcp_headers()
+        # Forward authorization headers
+        if "authorization" in headers:
+            request_headers["Authorization"] = headers["authorization"]
+        if "cookie" in headers:
+            request_headers["Cookie"] = headers["cookie"]
+        
         return await self.client.post(
             self.gateway_url,
             json=mcp_request,
-            headers=self._get_mcp_headers(headers)
+            headers=request_headers
         )
     
     async def deploy_service(
@@ -287,10 +297,17 @@ class CequenceClient:
             }
         }
         
+        request_headers = self._get_mcp_headers()
+        # Forward authorization headers
+        if "authorization" in headers:
+            request_headers["Authorization"] = headers["authorization"]
+        if "cookie" in headers:
+            request_headers["Cookie"] = headers["cookie"]
+        
         return await self.client.post(
             self.gateway_url,
             json=mcp_request,
-            headers=self._get_mcp_headers(headers)
+            headers=request_headers
         )
     
     async def rollback_deployment(
@@ -318,10 +335,17 @@ class CequenceClient:
             }
         }
         
+        request_headers = self._get_mcp_headers()
+        # Forward authorization headers
+        if "authorization" in headers:
+            request_headers["Authorization"] = headers["authorization"]
+        if "cookie" in headers:
+            request_headers["Cookie"] = headers["cookie"]
+        
         return await self.client.post(
             self.gateway_url,
             json=mcp_request,
-            headers=self._get_mcp_headers(headers)
+            headers=request_headers
         )
     
     async def rollback_staging(
@@ -347,10 +371,17 @@ class CequenceClient:
             }
         }
         
+        request_headers = self._get_mcp_headers()
+        # Forward authorization headers
+        if "authorization" in headers:
+            request_headers["Authorization"] = headers["authorization"]
+        if "cookie" in headers:
+            request_headers["Cookie"] = headers["cookie"]
+        
         return await self.client.post(
             self.gateway_url,
             json=mcp_request,
-            headers=self._get_mcp_headers(headers)
+            headers=request_headers
         )
     
     async def rollback_production(
@@ -376,10 +407,17 @@ class CequenceClient:
             }
         }
         
+        request_headers = self._get_mcp_headers()
+        # Forward authorization headers
+        if "authorization" in headers:
+            request_headers["Authorization"] = headers["authorization"]
+        if "cookie" in headers:
+            request_headers["Cookie"] = headers["cookie"]
+        
         return await self.client.post(
             self.gateway_url,
             json=mcp_request,
-            headers=self._get_mcp_headers(headers)
+            headers=request_headers
         )
     
     async def close(self):
