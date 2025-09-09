@@ -461,11 +461,16 @@ async def deploy_service_tool(
 ):
     """Deploy a service to a specific environment."""
     logger.info(f"🔧 Deploy service tool called with arguments: {tool_request.arguments}")
+    logger.info(f"🔧 Tool request object: {tool_request}")
+    logger.info(f"🔧 Request body type: {type(tool_request.arguments)}")
+    logger.info(f"🔧 Request body content: {tool_request.arguments}")
     
     # Extract arguments
     service_name = tool_request.arguments.get("service_name")
     version = tool_request.arguments.get("version")
     environment = tool_request.arguments.get("environment")
+    
+    logger.info(f"🔧 Extracted - service_name: {service_name}, version: {version}, environment: {environment}")
     
     # Validate required parameters
     validate_tool_arguments(tool_request.arguments, ["service_name", "version", "environment"])
