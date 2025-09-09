@@ -1,8 +1,0 @@
-from datetime import datetime
-from pydantic import BaseModel
-
-class MetricResponse(BaseModel):
-    timestamp: datetime
-    name: str
-    value: float
-    unit: str

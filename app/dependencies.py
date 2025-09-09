@@ -8,7 +8,6 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from app.config import settings
 from app.schemas.auth import UserPrincipal
 from app.infrastructure.auth.descope_client import descope_client, DescopeAuthError
-from app.utils.scope_checker import has_scopes
 
 # Import Descope constants
 try:

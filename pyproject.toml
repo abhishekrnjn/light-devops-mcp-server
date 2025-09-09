@@ -13,14 +13,7 @@ dependencies = [
     "pydantic",
     "pydantic-settings",
     "python-dotenv",
-    "descope",
-    "loguru",
-    "pytest",
-    "pytest-asyncio",
-    "mcp",
-    "structlog",
-    "tenacity",
-    "aiofiles"
+    "descope"
 ]
 
 [project.optional-dependencies]

@@ -16,21 +16,19 @@ Then clients can:
 - GET /mcp/stream - Server-Sent Events stream for real-time updates
 """
 
-import asyncio
 import json
 import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Request, Depends
-from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from app.config import settings
 from app.infrastructure.auth.descope_client import descope_client
 from app.infrastructure.cequence.cequence_client import cequence_client
-from app.dependencies import get_current_user, require_permissions
+from app.dependencies import get_current_user
 from app.schemas.auth import UserPrincipal
 from app.domain.services.log_service import LogService
 from app.domain.services.metrics_service import MetricsService
@@ -66,6 +64,59 @@ log_service = LogService(LogsClient())
 metrics_service = MetricsService(MetricsClient())
 deploy_service = DeployService(CICDClient())
 rollback_service = RollbackService(RollbackClient())
+
+# Helper functions to reduce code duplication
+async def parse_mcp_response(response) -> Dict[str, Any]:
+    """Parse MCP response from Cequence Gateway, handling both SSE and JSON formats."""
+    try:
+        # Handle SSE format if present
+        if response.headers.get("content-type", "").startswith("text/event-stream"):
+            # Parse SSE format: "data: {json}\n\n"
+            for line in response.text.split('\n'):
+                if line.startswith('data: '):
+                    mcp_response = json.loads(line[6:])  # Remove 'data: ' prefix
+                    if "result" in mcp_response:
+                        return mcp_response["result"]
+                    elif "error" in mcp_response:
+                        logger.warning(f"⚠️ MCP error from gateway: {mcp_response['error']}")
+                        raise Exception(f"Gateway returned error: {mcp_response['error']['message']}")
+            raise Exception("No valid data found in SSE response")
+        else:
+            # Handle regular JSON response
+            mcp_response = response.json()
+            if "result" in mcp_response:
+                return mcp_response["result"]
+            elif "error" in mcp_response:
+                logger.warning(f"⚠️ MCP error from gateway: {mcp_response['error']}")
+                raise Exception(f"Gateway returned error: {mcp_response['error']['message']}")
+            else:
+                logger.warning(f"⚠️ Unexpected MCP response format: {mcp_response}")
+                raise Exception(f"Unexpected response format from gateway")
+    except (ValueError, json.JSONDecodeError) as e:
+        logger.warning(f"⚠️ Failed to parse Cequence response: {e}")
+        logger.debug(f"Response content: {response.text[:500]}")
+        raise Exception(f"Invalid response from gateway")
+
+def check_permission(user: UserPrincipal, permission: str, resource: str = None) -> None:
+    """Check if user has required permission, raise HTTPException if not."""
+    if permission not in user.permissions:
+        detail = f"Insufficient permissions to {resource or permission}"
+        raise HTTPException(status_code=403, detail=detail)
+
+def validate_tool_arguments(arguments: Dict[str, Any], required_params: List[str]) -> None:
+    """Validate that all required parameters are present in tool arguments."""
+    missing = [param for param in required_params if not arguments.get(param)]
+    if missing:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Missing required parameters: {', '.join(missing)}"
+        )
+
+async def handle_cequence_gateway_error(response, operation: str) -> None:
+    """Handle Cequence Gateway errors with fallback logging."""
+    if response.status_code >= 400:
+        logger.warning(f"⚠️ Cequence Gateway returned {response.status_code} for {operation}, falling back to direct mode")
+        raise Exception(f"Gateway error: {response.status_code}")
 
 # Pydantic models for requests
 class ToolCallRequest(BaseModel):
@@ -118,27 +169,20 @@ MCP_TOOLS = [
         }
     ),
     MCPTool(
-        name="rollback_staging",
-        description="Rollback a staging deployment to previous version",
+        name="rollback_deployment",
+        description="Rollback a deployment to previous version",
         inputSchema={
             "type": "object",
             "properties": {
-                "deployment_id": {"type": "string", "description": "ID of the staging deployment to rollback"},
-                "reason": {"type": "string", "description": "Reason for the rollback"}
+                "deployment_id": {"type": "string", "description": "ID of the deployment to rollback"},
+                "reason": {"type": "string", "description": "Reason for the rollback"},
+                "environment": {
+                    "type": "string", 
+                    "enum": ["staging", "production"],
+                    "description": "Environment to rollback"
+                }
             },
-            "required": ["deployment_id", "reason"]
-        }
-    ),
-    MCPTool(
-        name="rollback_production",
-        description="Rollback a production deployment to previous version",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "deployment_id": {"type": "string", "description": "ID of the production deployment to rollback"},
-                "reason": {"type": "string", "description": "Reason for the rollback"}
-            },
-            "required": ["deployment_id", "reason"]
+            "required": ["deployment_id", "reason", "environment"]
         }
     ),
     MCPTool(
@@ -174,8 +218,7 @@ async def root():
         },
         "tools": {
             "deploy_service": "Deploy a service to an environment",
-            "rollback_staging": "Rollback a staging deployment",
-            "rollback_production": "Rollback a production deployment",
+            "rollback_deployment": "Rollback a deployment (staging or production)",
             "authenticate_user": "Authenticate with Descope"
         },
         "endpoints": {
@@ -206,99 +249,19 @@ async def read_resource(
     if settings.CEQUENCE_ENABLED:
         try:
             logger.info("🌐 Routing through Cequence Gateway")
-            # Extract headers for forwarding
             headers = dict(request.headers)
             
             if resource_path == "logs":
-                # Check specific permission for logs
-                if "read_logs" not in user.permissions:
-                    raise HTTPException(status_code=403, detail="Insufficient permissions to read logs")
-                
-                response = await cequence_client.get_logs(
-                    headers=headers,
-                    level=level,
-                    limit=limit
-                )
-                
-                # Check if response is successful
-                if response.status_code >= 400:
-                    logger.warning(f"⚠️ Cequence Gateway returned {response.status_code}, falling back to direct mode")
-                    raise Exception(f"Gateway error: {response.status_code}")
-                
-                # Try to parse MCP SSE response
-                try:
-                    # Handle SSE format if present
-                    if response.headers.get("content-type", "").startswith("text/event-stream"):
-                        # Parse SSE format: "data: {json}\n\n"
-                        for line in response.text.split('\n'):
-                            if line.startswith('data: '):
-                                mcp_response = json.loads(line[6:])  # Remove 'data: ' prefix
-                                if "result" in mcp_response:
-                                    return mcp_response["result"]
-                                elif "error" in mcp_response:
-                                    logger.warning(f"⚠️ MCP error from gateway: {mcp_response['error']}")
-                                    raise Exception(f"Gateway returned error: {mcp_response['error']['message']}")
-                        raise Exception("No valid data found in SSE response")
-                    else:
-                        # Handle regular JSON response
-                        mcp_response = response.json()
-                        if "result" in mcp_response:
-                            return mcp_response["result"]
-                        elif "error" in mcp_response:
-                            logger.warning(f"⚠️ MCP error from gateway: {mcp_response['error']}")
-                            raise Exception(f"Gateway returned error: {mcp_response['error']['message']}")
-                        else:
-                            logger.warning(f"⚠️ Unexpected MCP response format: {mcp_response}")
-                            raise Exception(f"Unexpected response format from gateway")
-                except (ValueError, json.JSONDecodeError) as e:
-                    logger.warning(f"⚠️ Failed to parse Cequence response: {e}")
-                    logger.debug(f"Response content: {response.text[:500]}")
-                    raise Exception(f"Invalid response from gateway")
+                check_permission(user, "read_logs", "read logs")
+                response = await cequence_client.get_logs(headers=headers, level=level, limit=limit)
+                await handle_cequence_gateway_error(response, "logs")
+                return await parse_mcp_response(response)
             
             elif resource_path == "metrics":
-                # Check specific permission for metrics
-                if "read_metrics" not in user.permissions:
-                    raise HTTPException(status_code=403, detail="Insufficient permissions to read metrics")
-                
-                response = await cequence_client.get_metrics(
-                    headers=headers,
-                    limit=limit
-                )
-                
-                # Check if response is successful
-                if response.status_code >= 400:
-                    logger.warning(f"⚠️ Cequence Gateway returned {response.status_code}, falling back to direct mode")
-                    raise Exception(f"Gateway error: {response.status_code}")
-                
-                # Try to parse MCP SSE response
-                try:
-                    # Handle SSE format if present
-                    if response.headers.get("content-type", "").startswith("text/event-stream"):
-                        # Parse SSE format: "data: {json}\n\n"
-                        for line in response.text.split('\n'):
-                            if line.startswith('data: '):
-                                mcp_response = json.loads(line[6:])  # Remove 'data: ' prefix
-                                if "result" in mcp_response:
-                                    return mcp_response["result"]
-                                elif "error" in mcp_response:
-                                    logger.warning(f"⚠️ MCP error from gateway: {mcp_response['error']}")
-                                    raise Exception(f"Gateway returned error: {mcp_response['error']['message']}")
-                        raise Exception("No valid data found in SSE response")
-                    else:
-                        # Handle regular JSON response
-                        mcp_response = response.json()
-                        if "result" in mcp_response:
-                            return mcp_response["result"]
-                        elif "error" in mcp_response:
-                            logger.warning(f"⚠️ MCP error from gateway: {mcp_response['error']}")
-                            raise Exception(f"Gateway returned error: {mcp_response['error']['message']}")
-                        else:
-                            logger.warning(f"⚠️ Unexpected MCP response format: {mcp_response}")
-                            raise Exception(f"Unexpected response format from gateway")
-                except (ValueError, json.JSONDecodeError) as e:
-                    logger.warning(f"⚠️ Failed to parse Cequence response: {e}")
-                    logger.debug(f"Response content: {response.text[:500]}")
-                    raise Exception(f"Invalid response from gateway")
+                check_permission(user, "read_metrics", "read metrics")
+                response = await cequence_client.get_metrics(headers=headers, limit=limit)
+                await handle_cequence_gateway_error(response, "metrics")
+                return await parse_mcp_response(response)
             
             else:
                 raise HTTPException(status_code=404, detail=f"Resource not found: {resource_path}")
@@ -311,10 +274,7 @@ async def read_resource(
     # Direct mode (original implementation)
     try:
         if resource_path == "logs":
-            # Check specific permission for logs
-            if "read_logs" not in user.permissions:
-                raise HTTPException(status_code=403, detail="Insufficient permissions to read logs")
-            
+            check_permission(user, "read_logs", "read logs")
             logs = await log_service.get_recent_logs()
             
             # Apply optional filtering
@@ -341,10 +301,7 @@ async def read_resource(
             }
         
         elif resource_path == "metrics":
-            # Check specific permission for metrics
-            if "read_metrics" not in user.permissions:
-                raise HTTPException(status_code=403, detail="Insufficient permissions to read metrics")
-                
+            check_permission(user, "read_metrics", "read metrics")
             metrics = await metrics_service.get_recent_metrics()
             
             # Apply limit
@@ -394,36 +351,20 @@ async def call_tool(
     if settings.CEQUENCE_ENABLED:
         try:
             logger.info("🌐 Routing tool call through Cequence Gateway")
-            # Extract headers for forwarding
             headers = dict(request.headers)
             
             if tool_name == "deploy_service":
+                validate_tool_arguments(tool_request.arguments, ["service_name", "version", "environment"])
+                
                 service_name = tool_request.arguments.get("service_name")
                 version = tool_request.arguments.get("version")
                 environment = tool_request.arguments.get("environment")
                 
-                if not all([service_name, version, environment]):
-                    return {
-                        "tool": tool_name,
-                        "success": False,
-                        "error": "Missing required parameters: service_name, version, environment"
-                    }
-                
                 # Check environment-specific permissions
                 if environment == "production":
-                    if "deploy_production" not in user.permissions:
-                        return {
-                            "tool": tool_name,
-                            "success": False,
-                            "error": "Insufficient permissions to deploy to production"
-                        }
+                    check_permission(user, "deploy_production", "deploy to production")
                 elif environment == "staging":
-                    if "deploy_staging" not in user.permissions:
-                        return {
-                            "tool": tool_name,
-                            "success": False,
-                            "error": "Insufficient permissions to deploy to staging"
-                        }
+                    check_permission(user, "deploy_staging", "deploy to staging")
                 
                 response = await cequence_client.deploy_service(
                     headers=headers,
@@ -431,159 +372,40 @@ async def call_tool(
                     version=version,
                     environment=environment
                 )
-                
-                # Check if response is successful
-                if response.status_code >= 400:
-                    logger.warning(f"⚠️ Cequence Gateway returned {response.status_code}, falling back to direct mode")
-                    raise Exception(f"Gateway error: {response.status_code}")
-                
-                # Try to parse MCP SSE response
-                try:
-                    # Handle SSE format if present
-                    if response.headers.get("content-type", "").startswith("text/event-stream"):
-                        # Parse SSE format: "data: {json}\n\n"
-                        for line in response.text.split('\n'):
-                            if line.startswith('data: '):
-                                mcp_response = json.loads(line[6:])  # Remove 'data: ' prefix
-                                if "result" in mcp_response:
-                                    return mcp_response["result"]
-                                elif "error" in mcp_response:
-                                    logger.warning(f"⚠️ MCP error from gateway: {mcp_response['error']}")
-                                    raise Exception(f"Gateway returned error: {mcp_response['error']['message']}")
-                        raise Exception("No valid data found in SSE response")
-                    else:
-                        # Handle regular JSON response
-                        mcp_response = response.json()
-                        if "result" in mcp_response:
-                            return mcp_response["result"]
-                        elif "error" in mcp_response:
-                            logger.warning(f"⚠️ MCP error from gateway: {mcp_response['error']}")
-                            raise Exception(f"Gateway returned error: {mcp_response['error']['message']}")
-                        else:
-                            logger.warning(f"⚠️ Unexpected MCP response format: {mcp_response}")
-                            raise Exception(f"Unexpected response format from gateway")
-                except (ValueError, json.JSONDecodeError) as e:
-                    logger.warning(f"⚠️ Failed to parse Cequence response: {e}")
-                    logger.debug(f"Response content: {response.text[:500]}")
-                    raise Exception(f"Invalid response from gateway")
+                await handle_cequence_gateway_error(response, "deploy_service")
+                return await parse_mcp_response(response)
             
-            elif tool_name == "rollback_staging":
+            elif tool_name == "rollback_deployment":
+                validate_tool_arguments(tool_request.arguments, ["deployment_id", "reason", "environment"])
+                
                 deployment_id = tool_request.arguments.get("deployment_id")
                 reason = tool_request.arguments.get("reason")
+                environment = tool_request.arguments.get("environment")
                 
-                if not all([deployment_id, reason]):
-                    return {
-                        "tool": tool_name,
-                        "success": False,
-                        "error": "Missing required parameters: deployment_id, reason"
-                    }
+                # Check environment-specific permissions
+                if environment == "production":
+                    check_permission(user, "rollback_production", "perform production rollbacks")
+                elif environment == "staging":
+                    check_permission(user, "rollback_staging", "perform staging rollbacks")
                 
-                if "rollback_staging" not in user.permissions:
-                    return {
-                        "tool": tool_name,
-                        "success": False,
-                        "error": "Insufficient permissions to perform staging rollbacks"
-                    }
+                # Route to appropriate Cequence method
+                if environment == "staging":
+                    response = await cequence_client.rollback_staging(
+                        headers=headers,
+                        deployment_id=deployment_id,
+                        reason=reason
+                    )
+                elif environment == "production":
+                    response = await cequence_client.rollback_production(
+                        headers=headers,
+                        deployment_id=deployment_id,
+                        reason=reason
+                    )
+                else:
+                    raise HTTPException(status_code=400, detail="Invalid environment. Must be 'staging' or 'production'")
                 
-                response = await cequence_client.rollback_staging(
-                    headers=headers,
-                    deployment_id=deployment_id,
-                    reason=reason
-                )
-                
-                # Check if response is successful
-                if response.status_code >= 400:
-                    logger.warning(f"⚠️ Cequence Gateway returned {response.status_code}, falling back to direct mode")
-                    raise Exception(f"Gateway error: {response.status_code}")
-                
-                # Try to parse MCP SSE response
-                try:
-                    # Handle SSE format if present
-                    if response.headers.get("content-type", "").startswith("text/event-stream"):
-                        # Parse SSE format: "data: {json}\n\n"
-                        for line in response.text.split('\n'):
-                            if line.startswith('data: '):
-                                mcp_response = json.loads(line[6:])  # Remove 'data: ' prefix
-                                if "result" in mcp_response:
-                                    return mcp_response["result"]
-                                elif "error" in mcp_response:
-                                    logger.warning(f"⚠️ MCP error from gateway: {mcp_response['error']}")
-                                    raise Exception(f"Gateway returned error: {mcp_response['error']['message']}")
-                        raise Exception("No valid data found in SSE response")
-                    else:
-                        # Handle regular JSON response
-                        mcp_response = response.json()
-                        if "result" in mcp_response:
-                            return mcp_response["result"]
-                        elif "error" in mcp_response:
-                            logger.warning(f"⚠️ MCP error from gateway: {mcp_response['error']}")
-                            raise Exception(f"Gateway returned error: {mcp_response['error']['message']}")
-                        else:
-                            logger.warning(f"⚠️ Unexpected MCP response format: {mcp_response}")
-                            raise Exception(f"Unexpected response format from gateway")
-                except (ValueError, json.JSONDecodeError) as e:
-                    logger.warning(f"⚠️ Failed to parse Cequence response: {e}")
-                    logger.debug(f"Response content: {response.text[:500]}")
-                    raise Exception(f"Invalid response from gateway")
-            
-            elif tool_name == "rollback_production":
-                deployment_id = tool_request.arguments.get("deployment_id")
-                reason = tool_request.arguments.get("reason")
-                
-                if not all([deployment_id, reason]):
-                    return {
-                        "tool": tool_name,
-                        "success": False,
-                        "error": "Missing required parameters: deployment_id, reason"
-                    }
-                
-                if "rollback_production" not in user.permissions:
-                    return {
-                        "tool": tool_name,
-                        "success": False,
-                        "error": "Insufficient permissions to perform production rollbacks"
-                    }
-                
-                response = await cequence_client.rollback_production(
-                    headers=headers,
-                    deployment_id=deployment_id,
-                    reason=reason
-                )
-                
-                # Check if response is successful
-                if response.status_code >= 400:
-                    logger.warning(f"⚠️ Cequence Gateway returned {response.status_code}, falling back to direct mode")
-                    raise Exception(f"Gateway error: {response.status_code}")
-                
-                # Try to parse MCP SSE response
-                try:
-                    # Handle SSE format if present
-                    if response.headers.get("content-type", "").startswith("text/event-stream"):
-                        # Parse SSE format: "data: {json}\n\n"
-                        for line in response.text.split('\n'):
-                            if line.startswith('data: '):
-                                mcp_response = json.loads(line[6:])  # Remove 'data: ' prefix
-                                if "result" in mcp_response:
-                                    return mcp_response["result"]
-                                elif "error" in mcp_response:
-                                    logger.warning(f"⚠️ MCP error from gateway: {mcp_response['error']}")
-                                    raise Exception(f"Gateway returned error: {mcp_response['error']['message']}")
-                        raise Exception("No valid data found in SSE response")
-                    else:
-                        # Handle regular JSON response
-                        mcp_response = response.json()
-                        if "result" in mcp_response:
-                            return mcp_response["result"]
-                        elif "error" in mcp_response:
-                            logger.warning(f"⚠️ MCP error from gateway: {mcp_response['error']}")
-                            raise Exception(f"Gateway returned error: {mcp_response['error']['message']}")
-                        else:
-                            logger.warning(f"⚠️ Unexpected MCP response format: {mcp_response}")
-                            raise Exception(f"Unexpected response format from gateway")
-                except (ValueError, json.JSONDecodeError) as e:
-                    logger.warning(f"⚠️ Failed to parse Cequence response: {e}")
-                    logger.debug(f"Response content: {response.text[:500]}")
-                    raise Exception(f"Invalid response from gateway")
+                await handle_cequence_gateway_error(response, "rollback_deployment")
+                return await parse_mcp_response(response)
                 
         except Exception as e:
             logger.error(f"❌ Error routing tool call through Cequence: {e}")
@@ -593,33 +415,17 @@ async def call_tool(
     # Direct mode (original implementation)
     try:
         if tool_name == "deploy_service":
-            # Check deployment permissions based on environment
+            validate_tool_arguments(tool_request.arguments, ["service_name", "version", "environment"])
+            
             service_name = tool_request.arguments.get("service_name")
             version = tool_request.arguments.get("version")
             environment = tool_request.arguments.get("environment")
             
-            if not all([service_name, version, environment]):
-                return {
-                    "tool": tool_name,
-                    "success": False,
-                    "error": "Missing required parameters: service_name, version, environment"
-                }
-            
             # Check environment-specific permissions
             if environment == "production":
-                if "deploy_production" not in user.permissions:
-                    return {
-                        "tool": tool_name,
-                        "success": False,
-                        "error": "Insufficient permissions to deploy to production"
-                    }
+                check_permission(user, "deploy_production", "deploy to production")
             elif environment == "staging":
-                if "deploy_staging" not in user.permissions:
-                    return {
-                        "tool": tool_name,
-                        "success": False,
-                        "error": "Insufficient permissions to deploy to staging"
-                    }
+                check_permission(user, "deploy_staging", "deploy to staging")
             
             # Perform deployment
             result = await deploy_service.deploy(service_name, version, environment)
@@ -636,68 +442,30 @@ async def call_tool(
                 }
             }
         
-        elif tool_name == "rollback_staging":
-            # Check staging rollback permissions
-            if "rollback_staging" not in user.permissions:
-                return {
-                    "tool": tool_name,
-                    "success": False,
-                    "error": "Insufficient permissions to perform staging rollbacks"
-                }
-                
+        elif tool_name == "rollback_deployment":
+            validate_tool_arguments(tool_request.arguments, ["deployment_id", "reason", "environment"])
+            
             deployment_id = tool_request.arguments.get("deployment_id")
             reason = tool_request.arguments.get("reason")
+            environment = tool_request.arguments.get("environment")
             
-            if not all([deployment_id, reason]):
-                return {
-                    "tool": tool_name,
-                    "success": False,
-                    "error": "Missing required parameters: deployment_id, reason"
-                }
+            # Check environment-specific permissions
+            if environment == "production":
+                check_permission(user, "rollback_production", "perform production rollbacks")
+            elif environment == "staging":
+                check_permission(user, "rollback_staging", "perform staging rollbacks")
+            else:
+                raise HTTPException(status_code=400, detail="Invalid environment. Must be 'staging' or 'production'")
             
-            # Perform staging rollback
-            result = await rollback_service.rollback(deployment_id, reason, environment="staging")
+            # Perform rollback
+            result = await rollback_service.rollback(deployment_id, reason, environment=environment)
             
             return {
                 "tool": tool_name,
                 "success": True,
                 "result": {
                     "deployment_id": deployment_id,
-                    "environment": "staging",
-                    "reason": result.reason,
-                    "status": result.status,
-                    "timestamp": result.timestamp
-                }
-            }
-        
-        elif tool_name == "rollback_production":
-            # Check production rollback permissions
-            if "rollback_production" not in user.permissions:
-                return {
-                    "tool": tool_name,
-                    "success": False,
-                    "error": "Insufficient permissions to perform production rollbacks"
-                }
-                
-            deployment_id = tool_request.arguments.get("deployment_id")
-            reason = tool_request.arguments.get("reason")
-            
-            if not all([deployment_id, reason]):
-                return {
-                    "tool": tool_name,
-                    "success": False,
-                    "error": "Missing required parameters: deployment_id, reason"
-                }
-            
-            # Perform production rollback
-            result = await rollback_service.rollback(deployment_id, reason, environment="production")
-            
-            return {
-                "tool": tool_name,
-                "success": True,
-                "result": {
-                    "deployment_id": deployment_id,
-                    "environment": "production",
+                    "environment": environment,
                     "reason": result.reason,
                     "status": result.status,
                     "timestamp": result.timestamp
@@ -705,15 +473,10 @@ async def call_tool(
             }
         
         elif tool_name == "authenticate_user":
+            validate_tool_arguments(tool_request.arguments, ["session_token"])
+            
             session_token = tool_request.arguments.get("session_token")
             refresh_token = tool_request.arguments.get("refresh_token")
-            
-            if not session_token:
-                return {
-                    "tool": tool_name,
-                    "success": False,
-                    "error": "Missing required parameter: session_token"
-                }
             
             # Validate session with Descope
             try:
@@ -764,10 +527,9 @@ if __name__ == "__main__":
     print("📋 Resources (2):")
     print("   - logs    - System logs with filtering")
     print("   - metrics - Performance metrics")
-    print("🔧 Tools (4):")
+    print("🔧 Tools (3):")
     print("   - deploy_service      - Deploy a service")
-    print("   - rollback_staging    - Rollback a staging deployment")
-    print("   - rollback_production - Rollback a production deployment")
+    print("   - rollback_deployment - Rollback a deployment (staging or production)")
     print("   - authenticate_user   - Authenticate with Descope")
     print("📡 Endpoints:")
     print("   - GET  /mcp/resources - List resources")
