@@ -15,10 +15,10 @@ class LogService:
             self.client_type = "mock"
 
     async def get_recent_logs(self, user_permissions: List[str] = None, level: Optional[str] = None):
-        """Get recent logs with optional filtering and scope permissions."""
+        """Get recent logs with optional filtering."""
         if self.client_type == "datadog":
-            # Datadog client handles level filtering and permissions internally
-            return await self.client.fetch_logs(level, user_permissions)
+            # Datadog client handles level filtering internally
+            return await self.client.fetch_logs(level)
         else:
             # Mock client - apply level filter manually
             logs = await self.client.fetch_logs()

@@ -25,7 +25,7 @@ class Settings:
     # Datadog Configuration
     DATADOG_API_KEY: Optional[str] = os.getenv("DATADOG_API_KEY") or os.getenv("DD_API_KEY")
     DATADOG_APP_KEY: Optional[str] = os.getenv("DATADOG_APP_KEY") or os.getenv("DD_APP_KEY")
-    DATADOG_SERVICE_NAME: str = os.getenv("DATADOG_SERVICE_NAME", "devops-mcp-server")
+    DATADOG_SERVICE_NAME: str = os.getenv("DATADOG_SERVICE_NAME", "payment-service")
     
     # RBAC Configuration
     # Available roles in the system

@@ -15,10 +15,10 @@ class MetricsService:
             self.client_type = "mock"
 
     async def get_recent_metrics(self, user_permissions: List[str] = None, fetch_historical: bool = False):
-        """Get recent metrics with scope permissions.
+        """Get recent metrics.
         
         Args:
-            user_permissions: User's permissions for access control
+            user_permissions: User's permissions (for future use)
             fetch_historical: If True, fetch historical data. If False, fetch only latest values.
         """
         if self.client_type == "datadog":

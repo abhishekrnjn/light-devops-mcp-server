@@ -1,4 +1,4 @@
-"""Datadog Metrics Client - Fetches real metrics from Datadog API with scope permissions"""
+"""Datadog Metrics Client - Fetches real metrics from Datadog API"""
 import asyncio
 import httpx
 import logging
@@ -10,7 +10,7 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 class DatadogMetricsClient:
-    """Client for fetching real metrics from Datadog API with scope-based access control."""
+    """Client for fetching real metrics from Datadog API."""
     
     def __init__(self):
         self.client = httpx.AsyncClient(timeout=30.0)
@@ -35,17 +35,12 @@ class DatadogMetricsClient:
         ]
         
     async def fetch_metrics(self, user_permissions: List[str] = None, fetch_historical: bool = False) -> List[Metric]:
-        """Fetch metrics from Datadog API with scope-based access control and fallback to mock data.
+        """Fetch metrics from Datadog API with fallback to mock data.
         
         Args:
-            user_permissions: User's permissions for access control
+            user_permissions: User's permissions (for future use)
             fetch_historical: If True, fetch multiple data points. If False, fetch only latest value per metric.
         """
-        
-        # Check if user has permission to read metrics
-        if user_permissions and "read_metrics" not in user_permissions:
-            logger.warning("❌ User lacks 'read_metrics' permission - returning empty metrics")
-            return []
         
         # Check cache first (only for non-historical requests)
         if not fetch_historical and self._cache and self._cache_timestamp:
@@ -69,7 +64,6 @@ class DatadogMetricsClient:
         to_time = int(now.timestamp())
         
         logger.info(f"🚀 OPTIMIZED: Fetching {len(self.metrics)} metrics from Datadog in a SINGLE batch call")
-        logger.info(f"🔐 User permissions: {user_permissions}")
         
         try:
             # OPTIMIZATION: Build a single query with all metrics
@@ -129,14 +123,14 @@ class DatadogMetricsClient:
                     
                     return all_metrics
                 else:
-                    logger.info("ℹ️  No metrics data returned from Datadog batch query")
+                    logger.info("No metrics data returned from Datadog batch query")
                     return self._get_mock_metrics()
             else:
-                logger.warning(f"⚠️ Datadog batch API error {response.status_code}, falling back to mock data")
+                logger.warning(f"Datadog batch API error {response.status_code}, falling back to mock data")
                 return self._get_mock_metrics()
                 
         except Exception as e:
-            logger.error(f"❌ Error fetching metrics from Datadog batch query: {e}, falling back to mock data")
+            logger.error(f"Error fetching metrics from Datadog batch query: {e}, falling back to mock data")
             return self._get_mock_metrics()
     
     def _transform_metrics(self, name: str, unit: str, series: List[Dict[str, Any]], fetch_historical: bool = False) -> List[Metric]:
