@@ -289,6 +289,37 @@ class CequenceClient:
             headers=self._get_mcp_headers()
         )
     
+    async def rollback_deployment(
+        self,
+        headers: Dict[str, str],
+        deployment_id: str,
+        reason: str,
+        environment: str
+    ) -> httpx.Response:
+        """Rollback deployment through Cequence Gateway using MCP tools/call with environment parameter."""
+        await self._ensure_initialized()
+        
+        # MCP tools/call request for postMcpToolsRollbackDeployment
+        mcp_request = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "tools/call",
+            "params": {
+                "name": "postMcpToolsRollbackDeployment",
+                "arguments": {
+                    "deployment_id": deployment_id,
+                    "reason": reason,
+                    "environment": environment
+                }
+            }
+        }
+        
+        return await self.client.post(
+            self.gateway_url,
+            json=mcp_request,
+            headers=self._get_mcp_headers()
+        )
+    
     async def rollback_staging(
         self,
         headers: Dict[str, str],

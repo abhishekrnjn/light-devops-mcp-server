@@ -214,13 +214,13 @@ async def root():
             "streaming": False
         },
         "resources": {
-            "logs": "System logs with optional filtering (?level=ERROR&limit=10)",
-            "metrics": "Performance metrics with optional limit (?limit=50)"
+            "logs": "/mcp/resources/logs - System logs with optional filtering",
+            "metrics": "/mcp/resources/metrics - Performance metrics with optional limit"
         },
         "tools": {
-            "deploy_service": "Deploy a service to an environment",
-            "rollback_deployment": "Rollback a deployment (staging or production)",
-            "authenticate_user": "Authenticate with Descope"
+            "deploy_service": "/mcp/tools/deploy_service - Deploy a service to an environment",
+            "rollback_deployment": "/mcp/tools/rollback_deployment - Rollback a deployment (staging or production)",
+            "authenticate_user": "/mcp/tools/authenticate_user - Authenticate with Descope"
         },
         "endpoints": {
             "resources": "/mcp/resources",
@@ -234,6 +234,120 @@ async def list_resources(user: UserPrincipal = Depends(get_current_user)):
     return {
         "resources": [resource.dict() for resource in MCP_RESOURCES]
     }
+
+@app.get("/mcp/resources/logs")
+async def get_logs(
+    request: Request,
+    level: Optional[str] = None, 
+    limit: int = 100,
+    since: Optional[str] = None,
+    user: UserPrincipal = Depends(get_current_user)
+):
+    """Get system logs with optional filtering capabilities."""
+    logger.info(f"📖 Reading logs resource")
+    
+    # If Cequence is enabled, route through gateway for audit and monitoring
+    if settings.CEQUENCE_ENABLED:
+        try:
+            logger.info("🌐 Routing through Cequence Gateway")
+            headers = dict(request.headers)
+            
+            check_permission(user, "read_logs", "read logs")
+            response = await cequence_client.get_logs(headers=headers, level=level, limit=limit, since=since)
+            await handle_cequence_gateway_error(response, "logs")
+            return await parse_mcp_response(response)
+                
+        except Exception as e:
+            logger.error(f"❌ Error routing through Cequence: {e}")
+            logger.info("🔄 Falling back to direct mode")
+            # Fall through to direct mode
+    
+    # Direct mode (original implementation)
+    try:
+        check_permission(user, "read_logs", "read logs")
+        logs = await log_service.get_recent_logs(
+            user_permissions=user.permissions,
+            level=level
+        )
+        
+        # Apply limit
+        logs = logs[:limit]
+        
+        return {
+            "uri": "logs",
+            "type": "logs",
+            "count": len(logs),
+            "filters": {"level": level, "limit": limit},
+            "data": [
+                {
+                    "level": log.level,
+                    "message": log.message,
+                    "timestamp": log.timestamp,
+                    "source": getattr(log, 'source', 'system')
+                }
+                for log in logs
+            ]
+        }
+    
+    except Exception as e:
+        logger.error(f"❌ Error reading logs: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/mcp/resources/metrics")
+async def get_metrics(
+    request: Request,
+    limit: int = 50,
+    service: Optional[str] = None,
+    user: UserPrincipal = Depends(get_current_user)
+):
+    """Get system metrics with optional filtering capabilities."""
+    logger.info(f"📖 Reading metrics resource")
+    
+    # If Cequence is enabled, route through gateway for audit and monitoring
+    if settings.CEQUENCE_ENABLED:
+        try:
+            logger.info("🌐 Routing through Cequence Gateway")
+            headers = dict(request.headers)
+            
+            check_permission(user, "read_metrics", "read metrics")
+            response = await cequence_client.get_metrics(headers=headers, limit=limit, service=service)
+            await handle_cequence_gateway_error(response, "metrics")
+            return await parse_mcp_response(response)
+                
+        except Exception as e:
+            logger.error(f"❌ Error routing through Cequence: {e}")
+            logger.info("🔄 Falling back to direct mode")
+            # Fall through to direct mode
+    
+    # Direct mode (original implementation)
+    try:
+        check_permission(user, "read_metrics", "read metrics")
+        metrics = await metrics_service.get_recent_metrics(
+            user_permissions=user.permissions
+        )
+        
+        # Apply limit
+        metrics = metrics[:limit]
+        
+        return {
+            "uri": "metrics",
+            "type": "metrics",
+            "count": len(metrics),
+            "filters": {"limit": limit},
+            "data": [
+                {
+                    "name": metric.name,
+                    "value": metric.value,
+                    "unit": metric.unit,
+                    "timestamp": getattr(metric, 'timestamp', datetime.now().isoformat())
+                }
+                for metric in metrics
+            ]
+        }
+    
+    except Exception as e:
+        logger.error(f"❌ Error reading metrics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/mcp/resources/{resource_path:path}")
 async def read_resource(
@@ -339,6 +453,179 @@ async def list_tools(user: UserPrincipal = Depends(get_current_user)):
         "tools": [tool.dict() for tool in MCP_TOOLS]
     }
 
+@app.post("/mcp/tools/deploy_service")
+async def deploy_service_tool(
+    tool_request: ToolCallRequest,
+    request: Request,
+    user: UserPrincipal = Depends(get_current_user)
+):
+    """Deploy a service to a specific environment."""
+    logger.info(f"🔧 Deploy service tool called with arguments: {tool_request.arguments}")
+    
+    # Extract arguments
+    service_name = tool_request.arguments.get("service_name")
+    version = tool_request.arguments.get("version")
+    environment = tool_request.arguments.get("environment")
+    
+    # Validate required parameters
+    validate_tool_arguments(tool_request.arguments, ["service_name", "version", "environment"])
+    
+    # Check environment-specific permissions
+    if environment == "production":
+        check_permission(user, "deploy_production", "deploy to production")
+    elif environment == "staging":
+        check_permission(user, "deploy_staging", "deploy to staging")
+    
+    # If Cequence is enabled, route through gateway for audit and monitoring
+    if settings.CEQUENCE_ENABLED:
+        try:
+            logger.info("🌐 Routing through Cequence Gateway")
+            headers = dict(request.headers)
+            
+            response = await cequence_client.deploy_service(
+                headers=headers,
+                service_name=service_name,
+                version=version,
+                environment=environment
+            )
+            await handle_cequence_gateway_error(response, "deploy_service")
+            return await parse_mcp_response(response)
+                
+        except Exception as e:
+            logger.error(f"❌ Error routing through Cequence: {e}")
+            logger.info("🔄 Falling back to direct mode")
+            # Fall through to direct mode
+    
+    # Direct mode (original implementation)
+    try:
+        # Perform deployment
+        deployment, http_status, json_response = await deploy_service.deploy(service_name, version, environment)
+        
+        return {
+            "tool": "deploy_service",
+            "success": True,
+            "result": json_response
+        }
+    
+    except Exception as e:
+        logger.error(f"❌ Error executing deploy_service: {e}")
+        return {
+            "tool": "deploy_service",
+            "success": False,
+            "error": str(e)
+        }
+
+@app.post("/mcp/tools/rollback_deployment")
+async def rollback_deployment_tool(
+    tool_request: ToolCallRequest,
+    request: Request,
+    user: UserPrincipal = Depends(get_current_user)
+):
+    """Rollback a deployment to previous version."""
+    logger.info(f"🔧 Rollback deployment tool called with arguments: {tool_request.arguments}")
+    
+    # Extract arguments
+    deployment_id = tool_request.arguments.get("deployment_id")
+    reason = tool_request.arguments.get("reason")
+    environment = tool_request.arguments.get("environment")
+    
+    # Validate required parameters
+    validate_tool_arguments(tool_request.arguments, ["deployment_id", "reason", "environment"])
+    
+    # Check environment-specific permissions
+    if environment == "production":
+        check_permission(user, "rollback_production", "perform production rollbacks")
+    elif environment == "staging":
+        check_permission(user, "rollback_staging", "perform staging rollbacks")
+    else:
+        raise HTTPException(status_code=400, detail="Invalid environment. Must be 'staging' or 'production'")
+    
+    # If Cequence is enabled, route through gateway for audit and monitoring
+    if settings.CEQUENCE_ENABLED:
+        try:
+            logger.info("🌐 Routing through Cequence Gateway")
+            headers = dict(request.headers)
+            
+            response = await cequence_client.rollback_deployment(
+                headers=headers,
+                deployment_id=deployment_id,
+                reason=reason,
+                environment=environment
+            )
+            await handle_cequence_gateway_error(response, "rollback_deployment")
+            return await parse_mcp_response(response)
+                
+        except Exception as e:
+            logger.error(f"❌ Error routing through Cequence: {e}")
+            logger.info("🔄 Falling back to direct mode")
+            # Fall through to direct mode
+    
+    # Direct mode (original implementation)
+    try:
+        # Perform rollback using unified service method
+        rollback, http_status, json_response = await rollback_service.rollback(deployment_id, reason, environment=environment)
+        
+        return {
+            "tool": "rollback_deployment",
+            "success": True,
+            "result": json_response
+        }
+    
+    except Exception as e:
+        logger.error(f"❌ Error executing rollback_deployment: {e}")
+        return {
+            "tool": "rollback_deployment",
+            "success": False,
+            "error": str(e)
+        }
+
+@app.post("/mcp/tools/authenticate_user")
+async def authenticate_user_tool(
+    tool_request: ToolCallRequest,
+    request: Request,
+    user: UserPrincipal = Depends(get_current_user)
+):
+    """Authenticate user and get permissions."""
+    logger.info(f"🔧 Authenticate user tool called with arguments: {tool_request.arguments}")
+    
+    # Extract arguments
+    session_token = tool_request.arguments.get("session_token")
+    refresh_token = tool_request.arguments.get("refresh_token")
+    
+    # Validate required parameters
+    validate_tool_arguments(tool_request.arguments, ["session_token"])
+    
+    # This tool is handled directly by the MCP server without Cequence Gateway routing
+    try:
+        # Validate session with Descope
+        jwt_response = descope_client.validate_session(
+            session_token=session_token,
+            refresh_token=refresh_token
+        )
+        
+        # Extract user principal
+        user_principal = descope_client.extract_user_principal(jwt_response, session_token)
+        
+        return {
+            "tool": "authenticate_user",
+            "success": True,
+            "result": {
+                "user_id": user_principal.user_id,
+                "name": user_principal.name,
+                "email": user_principal.email,
+                "roles": user_principal.roles,
+                "permissions": user_principal.permissions,
+                "tenant": user_principal.tenant
+            }
+        }
+    
+    except Exception as e:
+        return {
+            "tool": "authenticate_user",
+            "success": False,
+            "error": f"Authentication failed: {str(e)}"
+        }
+
 @app.post("/mcp/tools/{tool_name}")
 async def call_tool(
     tool_name: str, 
@@ -389,22 +676,16 @@ async def call_tool(
                     check_permission(user, "rollback_production", "perform production rollbacks")
                 elif environment == "staging":
                     check_permission(user, "rollback_staging", "perform staging rollbacks")
-                
-                # Route to appropriate Cequence method
-                if environment == "staging":
-                    response = await cequence_client.rollback_staging(
-                    headers=headers,
-                    deployment_id=deployment_id,
-                    reason=reason
-                )
-                elif environment == "production":
-                    response = await cequence_client.rollback_production(
-                    headers=headers,
-                    deployment_id=deployment_id,
-                    reason=reason
-                )
                 else:
                     raise HTTPException(status_code=400, detail="Invalid environment. Must be 'staging' or 'production'")
+                
+                # Use unified rollback function with environment parameter
+                response = await cequence_client.rollback_deployment(
+                    headers=headers,
+                    deployment_id=deployment_id,
+                    reason=reason,
+                    environment=environment
+                )
                 
                 await handle_cequence_gateway_error(response, "rollback_deployment")
                 return await parse_mcp_response(response)
@@ -453,7 +734,7 @@ async def call_tool(
             else:
                 raise HTTPException(status_code=400, detail="Invalid environment. Must be 'staging' or 'production'")
             
-            # Perform rollback
+            # Perform rollback using unified service method
             rollback, http_status, json_response = await rollback_service.rollback(deployment_id, reason, environment=environment)
             
             return {
