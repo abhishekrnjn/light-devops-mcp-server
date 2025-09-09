@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+httpx[http2]
+pydantic
+pydantic-settings
+python-dotenv
+descope
+datadog-api-client

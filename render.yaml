@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: light-devops-mcp-server
+    runtime: python3
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: python -m uvicorn mcp_http_server:app --host 0.0.0.0 --port $PORT --workers 1
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: ENVIRONMENT
+        value: "production"
+      - key: DEBUG
+        value: "false"
+      - key: AUTH_ALLOW_ANONYMOUS
+        value: "true"
+      - key: CEQUENCE_ENABLED
+        value: "true"
+      - key: DATADOG_SERVICE_NAME
+        value: "payment-service"
+      - key: AUTH_ACCEPT_COOKIE_NAME
+        value: "DS"
+      - key: DESCOPE_ENABLE_DEBUG
+        value: "false"
+    # Add these environment variables in Render dashboard:
+    # - CEQUENCE_GATEWAY_URL (sensitive)
+    # - DESCOPE_PROJECT_ID (sensitive)
+    # - DESCOPE_MANAGEMENT_KEY (sensitive)
+    # - DESCOPE_AUDIENCE (if needed)
+    # - DD_API_KEY (sensitive, optional)
+    # - DD_APP_KEY (sensitive, optional)

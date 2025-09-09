@@ -18,6 +18,7 @@ Then clients can:
 
 import json
 import logging
+import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -537,12 +538,14 @@ if __name__ == "__main__":
     print("   - GET  /mcp/resources/{path} - Read resource")
     print("   - GET  /mcp/tools - List tools")
     print("   - POST /mcp/tools/{name} - Call tool")
-    print("🌐 Server: http://localhost:8001")
+    # Get port from environment variable (for deployment) or default to 8001
+    port = int(os.getenv("PORT", 8001))
+    print(f"🌐 Server: http://localhost:{port}")
     
     uvicorn.run(
         "mcp_http_server:app",
         host="0.0.0.0",
-        port=8001,
+        port=port,
         reload=True,
         log_level="info"
     )
