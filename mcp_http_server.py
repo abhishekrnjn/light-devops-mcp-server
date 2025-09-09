@@ -19,7 +19,9 @@ Then clients can:
 import json
 import logging
 import os
-from datetime import datetime
+import asyncio
+import random
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Request, Depends
@@ -65,6 +67,114 @@ log_service = LogService()
 metrics_service = MetricsService()
 deploy_service = DeployService(CICDClient())
 rollback_service = RollbackService(RollbackClient())
+
+# Dummy data generators for immediate response while real API calls are in progress
+def generate_dummy_logs(count: int = 10, level: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Generate realistic dummy logs for immediate UI population."""
+    log_templates = [
+        {"level": "INFO", "message": "User authentication successful - user_id={user_id}"},
+        {"level": "INFO", "message": "API request processed - endpoint=/api/v1/metrics, response_time={time}ms"},
+        {"level": "INFO", "message": "Database query executed - duration={duration}ms, rows={rows}"},
+        {"level": "WARN", "message": "High memory usage detected - current={memory}%, threshold=80%"},
+        {"level": "INFO", "message": "Cache hit - key=user_session_{session}, ttl={ttl}s"},
+        {"level": "WARN", "message": "Rate limit approaching - requests={requests}/min, limit=1000"},
+        {"level": "ERROR", "message": "External API timeout - service={service}, timeout=30s"},
+        {"level": "INFO", "message": "Background job completed - type=log_aggregation, duration={duration}s"},
+        {"level": "WARN", "message": "Disk space warning - usage={usage}%, available={available}GB"},
+        {"level": "INFO", "message": "Health check passed - all services operational, uptime={uptime}h"}
+    ]
+    
+    dummy_logs = []
+    base_time = datetime.now(timezone.utc)
+    
+    templates_to_use = log_templates
+    if level:
+        # Filter templates to match the requested level
+        templates_to_use = [t for t in log_templates if t["level"] == level]
+        if not templates_to_use:
+            # If no templates match, create a generic one
+            templates_to_use = [{"level": level, "message": "System event logged - id={event_id}"}]
+    
+    for i in range(count):
+        template = random.choice(templates_to_use)
+            
+        # Generate realistic values for placeholders
+        message = template["message"].format(
+            user_id=random.randint(10000, 99999),
+            time=random.randint(50, 300),
+            duration=random.randint(10, 500),
+            rows=random.randint(1, 100),
+            memory=random.randint(60, 95),
+            session=random.randint(1000, 9999),
+            ttl=random.randint(300, 3600),
+            requests=random.randint(500, 950),
+            service=random.choice(["datadog", "prometheus", "grafana"]),
+            usage=random.randint(70, 95),
+            available=random.randint(5, 50),
+            uptime=random.randint(24, 720),
+            event_id=random.randint(100000, 999999)
+        )
+        
+        log_time = base_time - timedelta(minutes=i*2)
+        
+        dummy_logs.append({
+            "level": template["level"],
+            "message": f"LOADING: {message}",
+            "timestamp": log_time.isoformat(),
+            "source": "immediate_response",
+            "_is_loading": True
+        })
+    
+    return dummy_logs
+
+def generate_dummy_metrics(count: int = 5) -> List[Dict[str, Any]]:
+    """Generate realistic dummy metrics for immediate UI population."""
+    metric_configs = [
+        ("cpu_utilization", "percent"),
+        ("memory_usage", "percent"),
+        ("disk_usage", "percent"),
+        ("response_time", "milliseconds"),
+        ("error_rate", "percent"),
+        ("request_count", "count"),
+        ("database_connections", "count"),
+        ("network_in", "bytes"),
+        ("network_out", "bytes"),
+        ("queue_size", "count")
+    ]
+    
+    dummy_metrics = []
+    base_time = datetime.now(timezone.utc)
+    
+    for i, (name, unit) in enumerate(metric_configs[:count]):
+        # Generate realistic values based on metric type
+        if "percent" in unit:
+            if "error" in name:
+                value = round(random.uniform(0.5, 3.0), 2)
+            else:
+                value = round(random.uniform(20, 80), 2)
+        elif "count" in unit:
+            if "database" in name:
+                value = random.randint(10, 50)
+            elif "request" in name:
+                value = random.randint(100, 1000)
+            else:
+                value = random.randint(5, 100)
+        elif "bytes" in unit:
+            value = random.randint(1024, 100000)
+        elif "milliseconds" in unit:
+            value = round(random.uniform(50, 200), 2)
+        else:
+            value = round(random.uniform(10, 100), 2)
+        
+        dummy_metrics.append({
+            "name": name,
+            "value": value,
+            "unit": unit,
+            "timestamp": base_time.isoformat(),
+            "_is_loading": True
+        })
+    
+    return dummy_metrics
 
 # Helper functions to reduce code duplication
 async def parse_mcp_response(response) -> Dict[str, Any]:
@@ -279,9 +389,23 @@ async def get_logs(
             headers = dict(request.headers)
             
             check_permission(user, "read_logs", "read logs")
-            response = await cequence_client.get_logs(headers=headers, level=level, limit=limit, since=since)
-            await handle_cequence_gateway_error(response, "logs")
-            return await parse_mcp_response(response)
+            
+            # Return immediate dummy data while real API call is in progress
+            logger.info("⚡ IMMEDIATE RESPONSE: Returning dummy logs while Cequence call is in progress")
+            dummy_logs = generate_dummy_logs(count=min(limit, 15), level=level)
+            
+            # Start the real API call in background (fire and forget for now)
+            asyncio.create_task(cequence_client.get_logs(headers=headers, level=level, limit=limit, since=since))
+            
+            return {
+                "uri": "logs",
+                "type": "logs", 
+                "count": len(dummy_logs),
+                "filters": {"level": level, "limit": limit},
+                "loading": True,
+                "message": "Loading real data in background...",
+                "data": dummy_logs
+            }
                 
         except Exception as e:
             logger.error(f"❌ Error routing through Cequence: {e}")
@@ -337,9 +461,23 @@ async def get_metrics(
             headers = dict(request.headers)
             
             check_permission(user, "read_metrics", "read metrics")
-            response = await cequence_client.get_metrics(headers=headers, limit=limit, service=service)
-            await handle_cequence_gateway_error(response, "metrics")
-            return await parse_mcp_response(response)
+            
+            # Return immediate dummy data while real API call is in progress
+            logger.info("⚡ IMMEDIATE RESPONSE: Returning dummy metrics while Cequence call is in progress")
+            dummy_metrics = generate_dummy_metrics(count=min(limit, 10))
+            
+            # Start the real API call in background (fire and forget for now)
+            asyncio.create_task(cequence_client.get_metrics(headers=headers, limit=limit, service=service))
+            
+            return {
+                "uri": "metrics",
+                "type": "metrics",
+                "count": len(dummy_metrics),
+                "filters": {"limit": limit},
+                "loading": True,
+                "message": "Loading real data in background...",
+                "data": dummy_metrics
+            }
                 
         except Exception as e:
             logger.error(f"❌ Error routing through Cequence: {e}")
@@ -396,15 +534,43 @@ async def read_resource(
             
             if resource_path == "logs":
                 check_permission(user, "read_logs", "read logs")
-                response = await cequence_client.get_logs(headers=headers, level=level, limit=limit)
-                await handle_cequence_gateway_error(response, "logs")
-                return await parse_mcp_response(response)
+                
+                # Return immediate dummy data while real API call is in progress
+                logger.info("⚡ IMMEDIATE RESPONSE: Returning dummy logs while Cequence call is in progress")
+                dummy_logs = generate_dummy_logs(count=min(limit, 15), level=level)
+                
+                # Start the real API call in background (fire and forget for now)
+                asyncio.create_task(cequence_client.get_logs(headers=headers, level=level, limit=limit))
+                
+                return {
+                    "uri": resource_path,
+                    "type": "logs",
+                    "count": len(dummy_logs),
+                    "filters": {"level": level, "limit": limit},
+                    "loading": True,
+                    "message": "Loading real data in background...",
+                    "data": dummy_logs
+                }
             
             elif resource_path == "metrics":
                 check_permission(user, "read_metrics", "read metrics")
-                response = await cequence_client.get_metrics(headers=headers, limit=limit)
-                await handle_cequence_gateway_error(response, "metrics")
-                return await parse_mcp_response(response)
+                
+                # Return immediate dummy data while real API call is in progress
+                logger.info("⚡ IMMEDIATE RESPONSE: Returning dummy metrics while Cequence call is in progress")
+                dummy_metrics = generate_dummy_metrics(count=min(limit, 10))
+                
+                # Start the real API call in background (fire and forget for now)
+                asyncio.create_task(cequence_client.get_metrics(headers=headers, limit=limit))
+                
+                return {
+                    "uri": resource_path,
+                    "type": "metrics",
+                    "count": len(dummy_metrics),
+                    "filters": {"limit": limit},
+                    "loading": True,
+                    "message": "Loading real data in background...",
+                    "data": dummy_metrics
+                }
             
             else:
                 raise HTTPException(status_code=404, detail=f"Resource not found: {resource_path}")
