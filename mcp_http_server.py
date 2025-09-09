@@ -430,18 +430,12 @@ async def call_tool(
                 check_permission(user, "deploy_staging", "deploy to staging")
             
             # Perform deployment
-            result = await deploy_service.deploy(service_name, version, environment)
+            deployment, http_status, json_response = await deploy_service.deploy(service_name, version, environment)
             
             return {
                 "tool": tool_name,
                 "success": True,
-                "result": {
-                    "service_name": result.service_name,
-                    "version": result.version,
-                    "environment": result.environment,
-                    "status": result.status,
-                    "timestamp": result.timestamp
-                }
+                "result": json_response
             }
         
         elif tool_name == "rollback_deployment":
@@ -460,18 +454,12 @@ async def call_tool(
                 raise HTTPException(status_code=400, detail="Invalid environment. Must be 'staging' or 'production'")
             
             # Perform rollback
-            result = await rollback_service.rollback(deployment_id, reason, environment=environment)
+            rollback, http_status, json_response = await rollback_service.rollback(deployment_id, reason, environment=environment)
             
             return {
                 "tool": tool_name,
                 "success": True,
-                "result": {
-                    "deployment_id": deployment_id,
-                    "environment": environment,
-                    "reason": result.reason,
-                    "status": result.status,
-                    "timestamp": result.timestamp
-                }
+                "result": json_response
             }
         
         elif tool_name == "authenticate_user":

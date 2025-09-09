@@ -6,4 +6,5 @@ class Rollback(BaseModel):
     deployment_id: str
     status: str
     reason: str
+    environment: str
     timestamp: datetime
