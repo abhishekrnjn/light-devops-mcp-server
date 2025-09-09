@@ -18,7 +18,7 @@ class DatadogMetricsClient(BaseDatadogClient):
         self._base_url = "https://api.datadoghq.com/api/v1/query"
         self._cache: Optional[List[Metric]] = None
         self._cache_timestamp: Optional[datetime] = None
-        self._cache_ttl = timedelta(minutes=2)
+        self._cache_ttl = timedelta(minutes=5)  # Increased cache time since we're fetching 7 days of data
         
         # Metrics configuration
         self._metrics_config = [
@@ -61,8 +61,9 @@ class DatadogMetricsClient(BaseDatadogClient):
         time_range = self._get_time_range(fetch_historical)
         batch_query = self._build_batch_query()
         
-        logger.info(f"🚀 OPTIMIZED: Fetching {len(self._metrics_config)} metrics from Datadog in a SINGLE batch call")
+        logger.info(f"🚀 OPTIMIZED: Fetching {len(self._metrics_config)} metrics from Datadog in a SINGLE batch call (7-day range)")
         logger.info(f"🔍 Batch query: {batch_query}")
+        logger.info(f"⏰ Time range: {time_range[0]} to {time_range[1]} (7 days)")
         
         params = {
             "query": batch_query,
@@ -87,11 +88,11 @@ class DatadogMetricsClient(BaseDatadogClient):
         """Get time range for metrics query."""
         now = datetime.now(timezone.utc)
         if fetch_historical:
-            # Fetch last 24 hours for historical view
-            from_time = int((now - timedelta(hours=24)).timestamp())
+            # Fetch last 7 days for historical view
+            from_time = int((now - timedelta(days=7)).timestamp())
         else:
-            # Fetch only last 10 minutes for latest values
-            from_time = int((now - timedelta(minutes=10)).timestamp())
+            # Fetch last 7 days for latest values (increased from 10 minutes)
+            from_time = int((now - timedelta(days=7)).timestamp())
         to_time = int(now.timestamp())
         return from_time, to_time
     
@@ -110,7 +111,7 @@ class DatadogMetricsClient(BaseDatadogClient):
         
         if series:
             all_metrics = self._process_series(series, fetch_historical)
-            logger.info(f"✅ Successfully fetched {len(all_metrics)} real metrics from Datadog in 1 API call")
+            logger.info(f"✅ Successfully fetched {len(all_metrics)} real metrics from Datadog in 1 API call (7-day range)")
             
             # Update cache for non-historical requests
             if not fetch_historical:
