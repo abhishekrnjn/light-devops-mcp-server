@@ -13,7 +13,8 @@ dependencies = [
     "pydantic",
     "pydantic-settings",
     "python-dotenv",
-    "descope"
+    "descope",
+    "datadog-api-client"
 ]
 
 [project.optional-dependencies]

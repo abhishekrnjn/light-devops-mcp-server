@@ -22,6 +22,11 @@ class Settings:
     CEQUENCE_GATEWAY_URL: str = os.getenv("CEQUENCE_GATEWAY_URL", "https://ztaip-2df45991-4xp4r634bq-uc.a.run.app/mcp")
     CEQUENCE_ENABLED: bool = os.getenv("CEQUENCE_ENABLED", "true").lower() == "true"
     
+    # Datadog Configuration
+    DATADOG_API_KEY: Optional[str] = os.getenv("DATADOG_API_KEY") or os.getenv("DD_API_KEY")
+    DATADOG_APP_KEY: Optional[str] = os.getenv("DATADOG_APP_KEY") or os.getenv("DD_APP_KEY")
+    DATADOG_SERVICE_NAME: str = os.getenv("DATADOG_SERVICE_NAME", "devops-mcp-server")
+    
     # RBAC Configuration
     # Available roles in the system
     AVAILABLE_ROLES: List[str] = [
@@ -49,5 +54,15 @@ class Settings:
         "developer": ["read_metrics", "read_logs", "read_deployments", "deploy_staging", "rollback_staging"],
         "Developer_prod_access": ["read_metrics", "read_logs", "read_deployments", "read_rollbacks", "deploy_staging", "deploy_production", "rollback_staging", "rollback_production"]
     }
+    
+    @property
+    def datadog_api_key(self) -> Optional[str]:
+        """Get Datadog API key."""
+        return self.DATADOG_API_KEY
+    
+    @property
+    def datadog_app_key(self) -> Optional[str]:
+        """Get Datadog Application key."""
+        return self.DATADOG_APP_KEY
 
 settings = Settings()

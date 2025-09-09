@@ -60,8 +60,8 @@ app.add_middleware(
 )
 
 # Initialize services
-log_service = LogService(LogsClient())
-metrics_service = MetricsService(MetricsClient())
+log_service = LogService()
+metrics_service = MetricsService()
 deploy_service = DeployService(CICDClient())
 rollback_service = RollbackService(RollbackClient())
 
@@ -275,11 +275,10 @@ async def read_resource(
     try:
         if resource_path == "logs":
             check_permission(user, "read_logs", "read logs")
-            logs = await log_service.get_recent_logs()
-            
-            # Apply optional filtering
-            if level:
-                logs = [log for log in logs if log.level == level]
+            logs = await log_service.get_recent_logs(
+                user_permissions=user.permissions,
+                level=level
+            )
             
             # Apply limit
             logs = logs[:limit]
@@ -302,7 +301,9 @@ async def read_resource(
         
         elif resource_path == "metrics":
             check_permission(user, "read_metrics", "read metrics")
-            metrics = await metrics_service.get_recent_metrics()
+            metrics = await metrics_service.get_recent_metrics(
+                user_permissions=user.permissions
+            )
             
             # Apply limit
             metrics = metrics[:limit]
@@ -391,16 +392,16 @@ async def call_tool(
                 # Route to appropriate Cequence method
                 if environment == "staging":
                     response = await cequence_client.rollback_staging(
-                        headers=headers,
-                        deployment_id=deployment_id,
-                        reason=reason
-                    )
+                    headers=headers,
+                    deployment_id=deployment_id,
+                    reason=reason
+                )
                 elif environment == "production":
                     response = await cequence_client.rollback_production(
-                        headers=headers,
-                        deployment_id=deployment_id,
-                        reason=reason
-                    )
+                    headers=headers,
+                    deployment_id=deployment_id,
+                    reason=reason
+                )
                 else:
                     raise HTTPException(status_code=400, detail="Invalid environment. Must be 'staging' or 'production'")
                 
@@ -444,7 +445,7 @@ async def call_tool(
         
         elif tool_name == "rollback_deployment":
             validate_tool_arguments(tool_request.arguments, ["deployment_id", "reason", "environment"])
-            
+                
             deployment_id = tool_request.arguments.get("deployment_id")
             reason = tool_request.arguments.get("reason")
             environment = tool_request.arguments.get("environment")
