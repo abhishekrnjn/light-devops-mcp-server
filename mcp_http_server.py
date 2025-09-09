@@ -988,13 +988,17 @@ async def call_tool(
 
 @app.post("/mcp/tools/getMcpResourcesLogs")
 async def get_mcp_resources_logs_tool(
-    tool_request: ToolCallRequest,
+    request: Request,
     user: UserPrincipal = Depends(get_current_user)
 ):
     """MCP tool endpoint for getting logs - called by Cequence Gateway."""
     try:
-        # Extract arguments from the tool request
-        arguments = tool_request.arguments or {}
+        # Parse request body directly since MCP protocol sends parameters in body
+        body = await request.json()
+        logger.info(f"🔧 MCP Tool: getMcpResourcesLogs received body: {body}")
+        
+        # Extract arguments from MCP request body
+        arguments = body.get("params", {}).get("arguments", {}) if "params" in body else body
         level = arguments.get("level")
         limit = arguments.get("limit", 100)
         since = arguments.get("since")
@@ -1035,13 +1039,17 @@ async def get_mcp_resources_logs_tool(
 
 @app.post("/mcp/tools/getMcpResourcesMetrics")
 async def get_mcp_resources_metrics_tool(
-    tool_request: ToolCallRequest,
+    request: Request,
     user: UserPrincipal = Depends(get_current_user)
 ):
     """MCP tool endpoint for getting metrics - called by Cequence Gateway."""
     try:
-        # Extract arguments from the tool request
-        arguments = tool_request.arguments or {}
+        # Parse request body directly since MCP protocol sends parameters in body
+        body = await request.json()
+        logger.info(f"🔧 MCP Tool: getMcpResourcesMetrics received body: {body}")
+        
+        # Extract arguments from MCP request body
+        arguments = body.get("params", {}).get("arguments", {}) if "params" in body else body
         limit = arguments.get("limit", 50)
         service = arguments.get("service")
         metric_type = arguments.get("metric_type")
@@ -1078,14 +1086,17 @@ async def get_mcp_resources_metrics_tool(
 
 @app.post("/mcp/tools/postMcpToolsDeployService")
 async def post_mcp_tools_deploy_service_tool(
-    tool_request: ToolCallRequest,
     request: Request,
     user: UserPrincipal = Depends(get_current_user)
 ):
     """MCP tool endpoint for deploy service - called by Cequence Gateway."""
     try:
-        # Extract arguments from the tool request
-        arguments = tool_request.arguments or {}
+        # Parse request body directly since MCP protocol sends parameters in body
+        body = await request.json()
+        logger.info(f"🔧 MCP Tool: postMcpToolsDeployService received body: {body}")
+        
+        # Extract arguments from MCP request body
+        arguments = body.get("params", {}).get("arguments", {}) if "params" in body else body
         service_name = arguments.get("service_name")
         version = arguments.get("version")
         environment = arguments.get("environment")
@@ -1130,14 +1141,17 @@ async def post_mcp_tools_deploy_service_tool(
 
 @app.post("/mcp/tools/postMcpToolsRollbackDeployment")
 async def post_mcp_tools_rollback_deployment_tool(
-    tool_request: ToolCallRequest,
     request: Request,
     user: UserPrincipal = Depends(get_current_user)
 ):
     """MCP tool endpoint for rollback deployment - called by Cequence Gateway."""
     try:
-        # Extract arguments from the tool request
-        arguments = tool_request.arguments or {}
+        # Parse request body directly since MCP protocol sends parameters in body
+        body = await request.json()
+        logger.info(f"🔧 MCP Tool: postMcpToolsRollbackDeployment received body: {body}")
+        
+        # Extract arguments from MCP request body
+        arguments = body.get("params", {}).get("arguments", {}) if "params" in body else body
         deployment_id = arguments.get("deployment_id")
         reason = arguments.get("reason")
         environment = arguments.get("environment")
@@ -1182,7 +1196,7 @@ async def post_mcp_tools_rollback_deployment_tool(
 
 @app.post("/mcp/tools/get")
 async def get_tool(
-    tool_request: ToolCallRequest,
+    request: Request,
     user: UserPrincipal = Depends(get_current_user)
 ):
     """MCP tool endpoint for server information - called by Cequence Gateway."""
@@ -1224,7 +1238,7 @@ async def get_tool(
 
 @app.post("/mcp/tools/getMcpResources")
 async def get_mcp_resources_tool(
-    tool_request: ToolCallRequest,
+    request: Request,
     user: UserPrincipal = Depends(get_current_user)
 ):
     """MCP tool endpoint for listing MCP resources - called by Cequence Gateway."""
@@ -1249,7 +1263,7 @@ async def get_mcp_resources_tool(
 
 @app.post("/mcp/tools/getMcpTools")
 async def get_mcp_tools_tool(
-    tool_request: ToolCallRequest,
+    request: Request,
     user: UserPrincipal = Depends(get_current_user)
 ):
     """MCP tool endpoint for listing MCP tools - called by Cequence Gateway."""
@@ -1274,14 +1288,17 @@ async def get_mcp_tools_tool(
 
 @app.post("/mcp/tools/postMcpToolsAuthenticateUser")
 async def post_mcp_tools_authenticate_user_tool(
-    tool_request: ToolCallRequest,
     request: Request,
     user: UserPrincipal = Depends(get_current_user)
 ):
     """MCP tool endpoint for user authentication - called by Cequence Gateway."""
     try:
-        # Extract arguments from the tool request
-        arguments = tool_request.arguments or {}
+        # Parse request body directly since MCP protocol sends parameters in body
+        body = await request.json()
+        logger.info(f"🔧 MCP Tool: postMcpToolsAuthenticateUser received body: {body}")
+        
+        # Extract arguments from MCP request body
+        arguments = body.get("params", {}).get("arguments", {}) if "params" in body else body
         session_token = arguments.get("session_token")
         refresh_token = arguments.get("refresh_token")
         
