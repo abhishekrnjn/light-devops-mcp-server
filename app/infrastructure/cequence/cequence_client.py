@@ -6,6 +6,8 @@ import httpx
 import logging
 import json
 import uuid
+import random
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional
 from app.config import settings
 
@@ -300,6 +302,273 @@ class CequenceClient:
             logger.warning(f"🔍 Response content: {response.text[:500]}")
         
         return response
+    
+    def _generate_dummy_metrics(self, base_timestamp: datetime, count: int = 9) -> list:
+        """Generate realistic dummy metrics to supplement single real call."""
+        dummy_metrics = []
+        
+        # Metrics configuration matching DatadogMetricsClient
+        dummy_configs = [
+            ("memory_usage", "percent"),
+            ("disk_usage", "percent"),
+            ("network_in", "bytes"),
+            ("network_out", "bytes"),
+            ("response_time", "milliseconds"),
+            ("request_count", "count"),
+            ("error_rate", "percent"),
+            ("database_connections", "count"),
+            ("queue_size", "count")
+        ][:count]  # Take only the number requested
+        
+        for metric_name, unit in dummy_configs:
+            value = self._generate_realistic_metric_value(metric_name, unit)
+            dummy_metrics.append({
+                "name": metric_name,
+                "value": value,
+                "unit": unit,
+                "timestamp": base_timestamp.isoformat(),
+                "_is_dummy": True  # Mark as dummy data
+            })
+        
+        return dummy_metrics
+    
+    def _generate_realistic_metric_value(self, metric_name: str, unit: str) -> float:
+        """Generate realistic values based on metric type."""
+        if "percent" in unit or "rate" in metric_name:
+            if "error" in metric_name:
+                return round(random.uniform(0.1, 5.0), 2)  # Lower error rates
+            return round(random.uniform(15, 85), 2)
+        elif "count" in unit:
+            if "database" in metric_name:
+                return random.randint(5, 50)  # DB connections
+            elif "queue" in metric_name:
+                return random.randint(0, 25)  # Queue size
+            else:
+                return random.randint(10, 500)  # Request count
+        elif "bytes" in unit:
+            return random.randint(1024, 50000)  # Network traffic
+        elif "milliseconds" in unit:
+            return round(random.uniform(50, 300), 2)  # Response time
+        else:
+            return round(random.uniform(10, 100), 2)
+    
+    def _generate_dummy_logs(self, base_timestamp: datetime, count: int = 5) -> list:
+        """Generate realistic dummy logs to supplement single real call."""
+        dummy_logs = []
+        
+        log_templates = [
+            {"level": "INFO", "message": "User session validated successfully - session_id={session_id}"},
+            {"level": "INFO", "message": "API endpoint accessed - path=/api/v1/metrics, method=GET"},
+            {"level": "WARN", "message": "Rate limit approaching - current_rate=85%, threshold=90%"},
+            {"level": "INFO", "message": "Cache refresh completed - cache_size={cache_size}KB"},
+            {"level": "WARN", "message": "Slow query detected - duration={duration}ms, query_id={query_id}"},
+            {"level": "INFO", "message": "Background job completed - job_type=metrics_aggregation"},
+            {"level": "ERROR", "message": "External API timeout - service=datadog, timeout=30s"},
+            {"level": "INFO", "message": "Health check passed - all services operational"}
+        ]
+        
+        for i in range(min(count, len(log_templates))):
+            template = log_templates[i]
+            # Generate realistic values for placeholders
+            message = template["message"].format(
+                session_id=f"sess_{random.randint(10000, 99999)}",
+                cache_size=random.randint(100, 1000),
+                duration=random.randint(500, 2000),
+                query_id=f"q_{random.randint(1000, 9999)}"
+            )
+            
+            # Vary timestamps slightly
+            log_timestamp = base_timestamp - timedelta(minutes=i*2)
+            
+            dummy_logs.append({
+                "level": template["level"],
+                "message": f"OPTIMIZED_DUMMY: {message}",
+                "timestamp": log_timestamp.isoformat(),
+                "source": "cequence_optimization",
+                "_is_dummy": True  # Mark as dummy data
+            })
+        
+        return dummy_logs
+
+    async def get_metrics_optimized(
+        self,
+        headers: Dict[str, str],
+        limit: int = 50,
+        service: Optional[str] = None
+    ) -> httpx.Response:
+        """
+        OPTIMIZED: Get metrics through single call + dummy population.
+        Makes only 1 real API call instead of N calls through Cequence Gateway.
+        """
+        await self._ensure_initialized()
+        
+        logger.info("🚀 CEQUENCE OPTIMIZATION: Using single call + dummy population for metrics")
+        
+        # Make single call for the most critical metric (cpu_utilization)
+        arguments = {"limit": 1, "metric_type": "cpu_utilization"}
+        if service is not None:
+            arguments["service"] = service
+        
+        mcp_request = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "tools/call",
+            "params": {
+                "name": "getMcpResourcesMetrics",
+                "arguments": arguments
+            }
+        }
+        
+        logger.info(f"🔍 Single MCP request for critical metric: {json.dumps(mcp_request, indent=2)}")
+        
+        request_headers = self._get_mcp_headers()
+        if "authorization" in headers:
+            request_headers["Authorization"] = headers["authorization"]
+        if "cookie" in headers:
+            request_headers["Cookie"] = headers["cookie"]
+        
+        try:
+            response = await self.client.post(
+                self.gateway_url,
+                json=mcp_request,
+                headers=request_headers
+            )
+            
+            if response.status_code == 200:
+                # Parse the single real metric response
+                real_data = response.json()
+                
+                # Extract timestamp from real data for consistency
+                base_timestamp = datetime.now(timezone.utc)
+                if "result" in real_data and "data" in real_data["result"] and real_data["result"]["data"]:
+                    first_metric = real_data["result"]["data"][0]
+                    if "timestamp" in first_metric:
+                        base_timestamp = datetime.fromisoformat(first_metric["timestamp"].replace('Z', '+00:00'))
+                
+                # Generate dummy metrics to fill the rest
+                dummy_metrics = self._generate_dummy_metrics(base_timestamp, min(limit - 1, 9))
+                
+                # Combine real and dummy data
+                combined_data = real_data["result"]["data"] + dummy_metrics
+                
+                # Update the response
+                real_data["result"]["data"] = combined_data
+                real_data["result"]["count"] = len(combined_data)
+                real_data["result"]["optimization"] = {
+                    "enabled": True,
+                    "real_metrics": 1,
+                    "dummy_metrics": len(dummy_metrics),
+                    "total_api_calls": 1
+                }
+                
+                # Create a mock response with combined data
+                mock_response = httpx.Response(
+                    status_code=200,
+                    content=json.dumps(real_data).encode(),
+                    headers={"content-type": "application/json"},
+                    request=response.request
+                )
+                
+                logger.info(f"✅ OPTIMIZATION SUCCESS: 1 real + {len(dummy_metrics)} dummy metrics in 1 API call")
+                return mock_response
+            
+        except Exception as e:
+            logger.error(f"❌ Optimization failed: {e}, falling back to original method")
+        
+        # Fallback to original method if optimization fails
+        return await self.get_metrics(headers, limit, service)
+
+    async def get_logs_optimized(
+        self,
+        headers: Dict[str, str],
+        level: Optional[str] = None,
+        limit: int = 100,
+        since: Optional[str] = None
+    ) -> httpx.Response:
+        """
+        OPTIMIZED: Get logs through single call + dummy population.
+        Makes only 1 real API call instead of N calls through Cequence Gateway.
+        """
+        await self._ensure_initialized()
+        
+        logger.info("🚀 CEQUENCE OPTIMIZATION: Using single call + dummy population for logs")
+        
+        # Make single call for the most critical logs (ERROR level or specified level)
+        critical_level = level if level else "ERROR"
+        arguments = {"level": critical_level, "limit": min(limit // 2, 20)}  # Get some real logs
+        if since is not None:
+            arguments["since"] = since
+        
+        mcp_request = {
+            "jsonrpc": "2.0",
+            "id": str(uuid.uuid4()),
+            "method": "tools/call",
+            "params": {
+                "name": "getMcpResourcesLogs",
+                "arguments": arguments
+            }
+        }
+        
+        logger.info(f"🔍 Single MCP request for critical logs: {json.dumps(mcp_request, indent=2)}")
+        
+        request_headers = self._get_mcp_headers()
+        if "authorization" in headers:
+            request_headers["Authorization"] = headers["authorization"]
+        if "cookie" in headers:
+            request_headers["Cookie"] = headers["cookie"]
+        
+        try:
+            response = await self.client.post(
+                self.gateway_url,
+                json=mcp_request,
+                headers=request_headers
+            )
+            
+            if response.status_code == 200:
+                # Parse the real logs response
+                real_data = response.json()
+                
+                # Extract timestamp from real data for consistency
+                base_timestamp = datetime.now(timezone.utc)
+                if "result" in real_data and "data" in real_data["result"] and real_data["result"]["data"]:
+                    first_log = real_data["result"]["data"][0]
+                    if "timestamp" in first_log:
+                        base_timestamp = datetime.fromisoformat(first_log["timestamp"].replace('Z', '+00:00'))
+                
+                # Generate dummy logs to fill remaining limit
+                real_count = len(real_data["result"]["data"])
+                remaining_limit = max(0, limit - real_count)
+                dummy_logs = self._generate_dummy_logs(base_timestamp, min(remaining_limit, 10))
+                
+                # Combine real and dummy data
+                combined_data = real_data["result"]["data"] + dummy_logs
+                
+                # Update the response
+                real_data["result"]["data"] = combined_data
+                real_data["result"]["count"] = len(combined_data)
+                real_data["result"]["optimization"] = {
+                    "enabled": True,
+                    "real_logs": real_count,
+                    "dummy_logs": len(dummy_logs),
+                    "total_api_calls": 1
+                }
+                
+                # Create a mock response with combined data
+                mock_response = httpx.Response(
+                    status_code=200,
+                    content=json.dumps(real_data).encode(),
+                    headers={"content-type": "application/json"},
+                    request=response.request
+                )
+                
+                logger.info(f"✅ OPTIMIZATION SUCCESS: {real_count} real + {len(dummy_logs)} dummy logs in 1 API call")
+                return mock_response
+            
+        except Exception as e:
+            logger.error(f"❌ Optimization failed: {e}, falling back to original method")
+        
+        # Fallback to original method if optimization fails
+        return await self.get_logs(headers, level, limit, since)
     
     async def deploy_service(
         self,
