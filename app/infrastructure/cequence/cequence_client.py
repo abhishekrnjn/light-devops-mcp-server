@@ -120,8 +120,8 @@ class CequenceClient:
         else:
             logger.warning(f"⚠️ InitializedNotification failed: {response.status_code}")
     
-    def _get_mcp_headers(self) -> Dict[str, str]:
-        """Get standard MCP headers for requests."""
+    def _get_mcp_headers(self, additional_headers: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+        """Get standard MCP headers for requests, merging with additional headers."""
         headers = {
             "Content-Type": "application/json",
             "Accept": "application/json, text/event-stream",
@@ -131,6 +131,10 @@ class CequenceClient:
         
         if self.session_id:
             headers["Mcp-Session-Id"] = self.session_id
+        
+        # Merge additional headers (like Authorization) if provided
+        if additional_headers:
+            headers.update(additional_headers)
             
         return headers
     
@@ -222,7 +226,7 @@ class CequenceClient:
         return await self.client.post(
             self.gateway_url,
             json=mcp_request,
-            headers=self._get_mcp_headers()
+            headers=self._get_mcp_headers(headers)
         )
     
     async def get_metrics(
@@ -255,7 +259,7 @@ class CequenceClient:
         return await self.client.post(
             self.gateway_url,
             json=mcp_request,
-            headers=self._get_mcp_headers()
+            headers=self._get_mcp_headers(headers)
         )
     
     async def deploy_service(
@@ -286,7 +290,7 @@ class CequenceClient:
         return await self.client.post(
             self.gateway_url,
             json=mcp_request,
-            headers=self._get_mcp_headers()
+            headers=self._get_mcp_headers(headers)
         )
     
     async def rollback_deployment(
@@ -317,7 +321,7 @@ class CequenceClient:
         return await self.client.post(
             self.gateway_url,
             json=mcp_request,
-            headers=self._get_mcp_headers()
+            headers=self._get_mcp_headers(headers)
         )
     
     async def rollback_staging(
@@ -346,7 +350,7 @@ class CequenceClient:
         return await self.client.post(
             self.gateway_url,
             json=mcp_request,
-            headers=self._get_mcp_headers()
+            headers=self._get_mcp_headers(headers)
         )
     
     async def rollback_production(
@@ -375,7 +379,7 @@ class CequenceClient:
         return await self.client.post(
             self.gateway_url,
             json=mcp_request,
-            headers=self._get_mcp_headers()
+            headers=self._get_mcp_headers(headers)
         )
     
     async def close(self):
