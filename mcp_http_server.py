@@ -197,6 +197,32 @@ MCP_TOOLS = [
             },
             "required": ["session_token"]
         }
+    ),
+    MCPTool(
+        name="getMcpResourcesLogs",
+        description="Get system logs with optional filtering",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "level": {"type": "string", "enum": ["DEBUG", "INFO", "WARN", "ERROR"], "description": "Log level filter"},
+                "limit": {"type": "integer", "description": "Limit number of results"},
+                "since": {"type": "string", "description": "Filter logs since timestamp (ISO format)"}
+            },
+            "required": []
+        }
+    ),
+    MCPTool(
+        name="getMcpResourcesMetrics",
+        description="Get performance metrics with optional filtering",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "limit": {"type": "integer", "description": "Limit number of results"},
+                "service": {"type": "string", "description": "Filter by service name"},
+                "metric_type": {"type": "string", "description": "Type of metric to retrieve"}
+            },
+            "required": []
+        }
     )
 ]
 
@@ -790,6 +816,95 @@ async def call_tool(
             "error": str(e)
         }
 
+@app.post("/mcp/tools/getMcpResourcesLogs")
+async def get_mcp_resources_logs_tool(
+    tool_request: ToolCallRequest,
+    user: UserPrincipal = Depends(get_current_user)
+):
+    """MCP tool endpoint for getting logs - called by Cequence Gateway."""
+    try:
+        # Extract arguments from the tool request
+        arguments = tool_request.arguments or {}
+        level = arguments.get("level")
+        limit = arguments.get("limit", 100)
+        since = arguments.get("since")
+        
+        logger.info(f"🔧 MCP Tool: getMcpResourcesLogs called with level={level}, limit={limit}, since={since}")
+        
+        # Check permissions
+        check_permission(user, "read_logs", "read logs")
+        
+        # Get logs using the log service
+        logs = await log_service.get_recent_logs(
+            user_permissions=user.permissions,
+            level=level
+        )
+        
+        # Apply limit
+        logs = logs[:limit]
+        
+        return {
+            "tool": "getMcpResourcesLogs",
+            "success": True,
+            "result": {
+                "uri": "logs",
+                "type": "logs",
+                "count": len(logs),
+                "data": [log.dict() for log in logs]
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error in getMcpResourcesLogs: {e}")
+        return {
+            "tool": "getMcpResourcesLogs",
+            "success": False,
+            "error": str(e)
+        }
+
+@app.post("/mcp/tools/getMcpResourcesMetrics")
+async def get_mcp_resources_metrics_tool(
+    tool_request: ToolCallRequest,
+    user: UserPrincipal = Depends(get_current_user)
+):
+    """MCP tool endpoint for getting metrics - called by Cequence Gateway."""
+    try:
+        # Extract arguments from the tool request
+        arguments = tool_request.arguments or {}
+        limit = arguments.get("limit", 50)
+        service = arguments.get("service")
+        metric_type = arguments.get("metric_type")
+        
+        logger.info(f"🔧 MCP Tool: getMcpResourcesMetrics called with limit={limit}, service={service}, metric_type={metric_type}")
+        
+        # Check permissions
+        check_permission(user, "read_metrics", "read metrics")
+        
+        # Get metrics using the metrics service
+        metrics = await metrics_service.get_recent_metrics(
+            user_permissions=user.permissions,
+            limit=limit
+        )
+        
+        return {
+            "tool": "getMcpResourcesMetrics",
+            "success": True,
+            "result": {
+                "uri": "metrics",
+                "type": "metrics",
+                "count": len(metrics),
+                "data": [metric.dict() for metric in metrics]
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error in getMcpResourcesMetrics: {e}")
+        return {
+            "tool": "getMcpResourcesMetrics",
+            "success": False,
+            "error": str(e)
+        }
+
 
 if __name__ == "__main__":
     import uvicorn
@@ -798,10 +913,12 @@ if __name__ == "__main__":
     print("📋 Resources (2):")
     print("   - logs    - System logs with filtering")
     print("   - metrics - Performance metrics")
-    print("🔧 Tools (3):")
+    print("🔧 Tools (5):")
     print("   - deploy_service      - Deploy a service")
     print("   - rollback_deployment - Rollback a deployment (staging or production)")
     print("   - authenticate_user   - Authenticate with Descope")
+    print("   - getMcpResourcesLogs - Get system logs (MCP tool)")
+    print("   - getMcpResourcesMetrics - Get performance metrics (MCP tool)")
     print("📡 Endpoints:")
     print("   - GET  /mcp/resources - List resources")
     print("   - GET  /mcp/resources/{path} - Read resource")
