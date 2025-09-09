@@ -1,6 +1,6 @@
 """Metrics Service - Uses Datadog when available, falls back to mock"""
 from typing import List
-from app.infrastructure.metrics.datadog_metrics_client import DatadogMetricsClient
+from app.infrastructure.datadog.metrics_client import DatadogMetricsClient
 from app.infrastructure.metrics.metrics_client import MetricsClient
 from app.config import settings
 
@@ -22,6 +22,6 @@ class MetricsService:
             fetch_historical: If True, fetch historical data. If False, fetch only latest values.
         """
         if self.client_type == "datadog":
-            return await self.client.fetch_metrics(user_permissions, fetch_historical)
+            return await self.client.fetch_data(user_permissions=user_permissions, fetch_historical=fetch_historical)
         else:
             return await self.client.fetch_metrics()
