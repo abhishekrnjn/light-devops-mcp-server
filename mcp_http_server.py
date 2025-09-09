@@ -279,7 +279,7 @@ async def get_logs(
             headers = dict(request.headers)
             
             check_permission(user, "read_logs", "read logs")
-            response = await cequence_client.get_logs_optimized(headers=headers, level=level, limit=limit, since=since)
+            response = await cequence_client.get_logs(headers=headers, level=level, limit=limit, since=since)
             await handle_cequence_gateway_error(response, "logs")
             return await parse_mcp_response(response)
                 
@@ -336,7 +336,7 @@ async def get_metrics(
             headers = dict(request.headers)
             
             check_permission(user, "read_metrics", "read metrics")
-            response = await cequence_client.get_metrics_optimized(headers=headers, limit=limit, service=service)
+            response = await cequence_client.get_metrics(headers=headers, limit=limit, service=service)
             await handle_cequence_gateway_error(response, "metrics")
             return await parse_mcp_response(response)
                 
@@ -394,13 +394,13 @@ async def read_resource(
             
             if resource_path == "logs":
                 check_permission(user, "read_logs", "read logs")
-                response = await cequence_client.get_logs_optimized(headers=headers, level=level, limit=limit)
+                response = await cequence_client.get_logs(headers=headers, level=level, limit=limit)
                 await handle_cequence_gateway_error(response, "logs")
                 return await parse_mcp_response(response)
             
             elif resource_path == "metrics":
                 check_permission(user, "read_metrics", "read metrics")
-                response = await cequence_client.get_metrics_optimized(headers=headers, limit=limit)
+                response = await cequence_client.get_metrics(headers=headers, limit=limit)
                 await handle_cequence_gateway_error(response, "metrics")
                 return await parse_mcp_response(response)
             
