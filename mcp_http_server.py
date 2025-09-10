@@ -390,18 +390,22 @@ async def get_logs(
             
             check_permission(user, "read_logs", "read logs")
             
-            # TEMPORARILY DISABLED: Return immediate dummy data while real API call is in progress
-            # logger.info("⚡ IMMEDIATE RESPONSE: Returning dummy logs while Cequence call is in progress")
-            # dummy_logs = generate_dummy_logs(count=min(limit, 15), level=level)
+            # Return immediate dummy data while real API call is in progress
+            logger.info("⚡ IMMEDIATE RESPONSE: Returning dummy logs while Cequence call is in progress")
+            dummy_logs = generate_dummy_logs(count=min(limit, 15), level=level)
             
-            # TEMPORARILY DISABLED: Start the real API call in background (fire and forget for now)
-            # asyncio.create_task(cequence_client.get_logs(headers=headers, level=level, limit=limit, since=since))
+            # Start the real API call in background (fire and forget for now)
+            asyncio.create_task(cequence_client.get_logs(headers=headers, level=level, limit=limit, since=since))                                                                                                      
             
-            # TEMPORARILY: Make direct Cequence call and wait for response
-            logger.info("🔧 TEMPORARY: Making direct Cequence call for logs")
-            response = await cequence_client.get_logs(headers=headers, level=level, limit=limit, since=since)
-            await handle_cequence_gateway_error(response, "logs")
-            return await parse_mcp_response(response)
+            return {
+                "uri": "logs",
+                "type": "logs", 
+                "count": len(dummy_logs),
+                "filters": {"level": level, "limit": limit},
+                "loading": True,
+                "message": "Loading real data in background...",
+                "data": dummy_logs
+            }
                 
         except Exception as e:
             logger.error(f"❌ Error routing through Cequence: {e}")
@@ -458,18 +462,22 @@ async def get_metrics(
             
             check_permission(user, "read_metrics", "read metrics")
             
-            # TEMPORARILY DISABLED: Return immediate dummy data while real API call is in progress
-            # logger.info("⚡ IMMEDIATE RESPONSE: Returning dummy metrics while Cequence call is in progress")
-            # dummy_metrics = generate_dummy_metrics(count=min(limit, 10))
+            # Return immediate dummy data while real API call is in progress
+            logger.info("⚡ IMMEDIATE RESPONSE: Returning dummy metrics while Cequence call is in progress")                                                                                                           
+            dummy_metrics = generate_dummy_metrics(count=min(limit, 10))
             
-            # TEMPORARILY DISABLED: Start the real API call in background (fire and forget for now)
-            # asyncio.create_task(cequence_client.get_metrics(headers=headers, limit=limit, service=service))
+            # Start the real API call in background (fire and forget for now)
+            asyncio.create_task(cequence_client.get_metrics(headers=headers, limit=limit, service=service))
             
-            # TEMPORARILY: Make direct Cequence call and wait for response
-            logger.info("🔧 TEMPORARY: Making direct Cequence call for metrics")
-            response = await cequence_client.get_metrics(headers=headers, limit=limit, service=service)
-            await handle_cequence_gateway_error(response, "metrics")
-            return await parse_mcp_response(response)
+            return {
+                "uri": "metrics",
+                "type": "metrics",
+                "count": len(dummy_metrics),
+                "filters": {"limit": limit},
+                "loading": True,
+                "message": "Loading real data in background...",
+                "data": dummy_metrics
+            }
                 
         except Exception as e:
             logger.error(f"❌ Error routing through Cequence: {e}")
@@ -527,34 +535,42 @@ async def read_resource(
             if resource_path == "logs":
                 check_permission(user, "read_logs", "read logs")
                 
-                # TEMPORARILY DISABLED: Return immediate dummy data while real API call is in progress
-                # logger.info("⚡ IMMEDIATE RESPONSE: Returning dummy logs while Cequence call is in progress")
-                # dummy_logs = generate_dummy_logs(count=min(limit, 15), level=level)
+                # Return immediate dummy data while real API call is in progress
+                logger.info("⚡ IMMEDIATE RESPONSE: Returning dummy logs while Cequence call is in progress")                                                                                                          
+                dummy_logs = generate_dummy_logs(count=min(limit, 15), level=level)
                 
-                # TEMPORARILY DISABLED: Start the real API call in background (fire and forget for now)
-                # asyncio.create_task(cequence_client.get_logs(headers=headers, level=level, limit=limit))
+                # Start the real API call in background (fire and forget for now)
+                asyncio.create_task(cequence_client.get_logs(headers=headers, level=level, limit=limit))
                 
-                # TEMPORARILY: Make direct Cequence call and wait for response
-                logger.info("🔧 TEMPORARY: Making direct Cequence call for logs")
-                response = await cequence_client.get_logs(headers=headers, level=level, limit=limit)
-                await handle_cequence_gateway_error(response, "logs")
-                return await parse_mcp_response(response)
+                return {
+                    "uri": resource_path,
+                    "type": "logs",
+                    "count": len(dummy_logs),
+                    "filters": {"level": level, "limit": limit},
+                    "loading": True,
+                    "message": "Loading real data in background...",
+                    "data": dummy_logs
+                }
             
             elif resource_path == "metrics":
                 check_permission(user, "read_metrics", "read metrics")
                 
-                # TEMPORARILY DISABLED: Return immediate dummy data while real API call is in progress
-                # logger.info("⚡ IMMEDIATE RESPONSE: Returning dummy metrics while Cequence call is in progress")
-                # dummy_metrics = generate_dummy_metrics(count=min(limit, 10))
+                # Return immediate dummy data while real API call is in progress
+                logger.info("⚡ IMMEDIATE RESPONSE: Returning dummy metrics while Cequence call is in progress")                                                                                                       
+                dummy_metrics = generate_dummy_metrics(count=min(limit, 10))
                 
-                # TEMPORARILY DISABLED: Start the real API call in background (fire and forget for now)
-                # asyncio.create_task(cequence_client.get_metrics(headers=headers, limit=limit))
+                # Start the real API call in background (fire and forget for now)
+                asyncio.create_task(cequence_client.get_metrics(headers=headers, limit=limit))
                 
-                # TEMPORARILY: Make direct Cequence call and wait for response
-                logger.info("🔧 TEMPORARY: Making direct Cequence call for metrics")
-                response = await cequence_client.get_metrics(headers=headers, limit=limit)
-                await handle_cequence_gateway_error(response, "metrics")
-                return await parse_mcp_response(response)
+                return {
+                    "uri": resource_path,
+                    "type": "metrics",
+                    "count": len(dummy_metrics),
+                    "filters": {"limit": limit},
+                    "loading": True,
+                    "message": "Loading real data in background...",
+                    "data": dummy_metrics
+                }
             
             else:
                 raise HTTPException(status_code=404, detail=f"Resource not found: {resource_path}")
