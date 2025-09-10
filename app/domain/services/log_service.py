@@ -1,8 +1,11 @@
 """Log Service - Uses Datadog when available, falls back to mock"""
+
 from typing import List, Optional
+
+from app.config import settings
 from app.infrastructure.datadog.logs_client import DatadogLogsClient
 from app.infrastructure.logs.logs_client import LogsClient
-from app.config import settings
+
 
 class LogService:
     def __init__(self):
@@ -14,7 +17,12 @@ class LogService:
             self.client = LogsClient()
             self.client_type = "mock"
 
-    async def get_recent_logs(self, user_permissions: List[str] = None, level: Optional[str] = None, limit: int = None):
+    async def get_recent_logs(
+        self,
+        user_permissions: List[str] = None,
+        level: Optional[str] = None,
+        limit: int = None,
+    ):
         """Get recent logs with optional filtering."""
         if self.client_type == "datadog":
             # Datadog client handles level filtering internally

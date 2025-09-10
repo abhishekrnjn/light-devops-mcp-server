@@ -1,17 +1,21 @@
-import uuid
 import random
+import uuid
 from datetime import datetime, timezone
-from typing import Dict, Any, Tuple
+from typing import Any, Dict, Tuple
+
 from app.domain.entities.deployment import Deployment
 
+
 class CICDClient:
-    async def deploy_service(self, service_name: str, version: str, environment: str) -> Tuple[Deployment, int, Dict[str, Any]]:
+    async def deploy_service(
+        self, service_name: str, version: str, environment: str
+    ) -> Tuple[Deployment, int, Dict[str, Any]]:
         """Deploy service with different responses based on request parameters."""
-        
+
         # Simulate different scenarios based on service name and environment
         deployment_id = str(uuid.uuid4())
         timestamp = datetime.now(timezone.utc)
-        
+
         # Different statuses based on service name patterns
         if "test" in service_name.lower() or "demo" in service_name.lower():
             status = "SUCCESS"  # Test services always succeed
@@ -26,7 +30,9 @@ class CICDClient:
                 http_status = 200
         elif "experimental" in service_name.lower() or "beta" in service_name.lower():
             # Experimental services have higher failure rate
-            status = random.choices(["SUCCESS", "FAILED", "IN_PROGRESS"], weights=[60, 30, 10])[0]
+            status = random.choices(
+                ["SUCCESS", "FAILED", "IN_PROGRESS"], weights=[60, 30, 10]
+            )[0]
             if status == "IN_PROGRESS":
                 http_status = 202  # Accepted - processing
             elif status == "FAILED":
@@ -37,7 +43,7 @@ class CICDClient:
             # Default behavior - mostly successful
             status = random.choices(["SUCCESS", "FAILED"], weights=[85, 15])[0]
             http_status = 200 if status == "SUCCESS" else 500
-        
+
         # Environment-specific behavior
         if environment == "production":
             # Production deployments take longer and have more validation
@@ -52,7 +58,7 @@ class CICDClient:
                     http_status = 202
                 else:
                     http_status = 200
-        
+
         # Create deployment object
         deployment = Deployment(
             deployment_id=deployment_id,
@@ -60,9 +66,9 @@ class CICDClient:
             version=version,
             environment=environment,
             status=status,
-            timestamp=timestamp
+            timestamp=timestamp,
         )
-        
+
         # Create JSON response
         json_response = {
             "success": status in ["SUCCESS", "IN_PROGRESS"],
@@ -72,13 +78,15 @@ class CICDClient:
                 "deployment_id": deployment_id,
                 "timestamp": timestamp.isoformat(),
                 "environment": environment,
-                "service_type": self._get_service_type(service_name)
-            }
+                "service_type": self._get_service_type(service_name),
+            },
         }
-        
+
         return deployment, http_status, json_response
-    
-    def _get_deployment_message(self, status: str, service_name: str, environment: str) -> str:
+
+    def _get_deployment_message(
+        self, status: str, service_name: str, environment: str
+    ) -> str:
         """Generate appropriate message based on deployment status."""
         if status == "SUCCESS":
             return f"✅ Successfully deployed {service_name} v{service_name} to {environment}"
@@ -88,7 +96,7 @@ class CICDClient:
             return f"⏳ Deployment of {service_name} to {environment} is in progress..."
         else:
             return f"🔄 Deployment status for {service_name} in {environment}: {status}"
-    
+
     def _get_service_type(self, service_name: str) -> str:
         """Determine service type based on name patterns."""
         name_lower = service_name.lower()
@@ -100,25 +108,31 @@ class CICDClient:
             return "experimental"
         else:
             return "standard"
-    
+
     async def get_deployments(self) -> Tuple[list[Deployment], int, Dict[str, Any]]:
         """Get recent deployments with varied realistic data."""
         # More diverse service names and scenarios
         services = [
-            "api-service", "web-service", "worker-service", "auth-service",
-            "payment-service", "notification-service", "test-service",
-            "critical-core-service", "experimental-beta-service", "demo-service"
+            "api-service",
+            "web-service",
+            "worker-service",
+            "auth-service",
+            "payment-service",
+            "notification-service",
+            "test-service",
+            "critical-core-service",
+            "experimental-beta-service",
+            "demo-service",
         ]
         environments = ["dev", "staging", "production"]
-        statuses = ["SUCCESS", "FAILED", "IN_PROGRESS"]
-        
+
         deployments = []
         base_time = datetime.now(timezone.utc)
-        
+
         for i in range(8):  # More deployments for better variety
             service = services[i % len(services)]
             environment = environments[i % len(environments)]
-            
+
             # Apply same logic as deploy_service for consistency
             if "test" in service.lower() or "demo" in service.lower():
                 status = "SUCCESS"
@@ -128,26 +142,32 @@ class CICDClient:
                 else:
                     status = "SUCCESS"
             elif "experimental" in service.lower() or "beta" in service.lower():
-                status = random.choices(["SUCCESS", "FAILED", "IN_PROGRESS"], weights=[60, 30, 10])[0]
+                status = random.choices(
+                    ["SUCCESS", "FAILED", "IN_PROGRESS"], weights=[60, 30, 10]
+                )[0]
             else:
                 status = random.choices(["SUCCESS", "FAILED"], weights=[85, 15])[0]
-            
+
             # Add time variation (more recent deployments first)
             time_offset = i * 2  # 2 hours between deployments
             timestamp = base_time.replace(hour=(base_time.hour - time_offset) % 24)
-            
-            deployments.append(Deployment(
-                deployment_id=str(uuid.uuid4()),
-                service_name=service,
-                version=f"v{random.randint(1, 3)}.{random.randint(0, 9)}.{random.randint(0, 9)}",
-                environment=environment,
-                status=status,
-                timestamp=timestamp
-            ))
-        
+
+            deployments.append(
+                Deployment(
+                    deployment_id=str(uuid.uuid4()),
+                    service_name=service,
+                    version=f"v{random.randint(1, 3)}.{random.randint(0, 9)}.{random.randint(0, 9)}",
+                    environment=environment,
+                    status=status,
+                    timestamp=timestamp,
+                )
+            )
+
         # Sort by timestamp (most recent first)
-        sorted_deployments = sorted(deployments, key=lambda x: x.timestamp, reverse=True)
-        
+        sorted_deployments = sorted(
+            deployments, key=lambda x: x.timestamp, reverse=True
+        )
+
         # Create JSON response
         json_response = {
             "success": True,
@@ -157,13 +177,21 @@ class CICDClient:
             "metadata": {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "total_deployments": len(sorted_deployments),
-                "environments": list(set(dep.environment for dep in sorted_deployments)),
+                "environments": list(
+                    set(dep.environment for dep in sorted_deployments)
+                ),
                 "status_summary": {
-                    "success": len([d for d in sorted_deployments if d.status == "SUCCESS"]),
-                    "failed": len([d for d in sorted_deployments if d.status == "FAILED"]),
-                    "in_progress": len([d for d in sorted_deployments if d.status == "IN_PROGRESS"])
-                }
-            }
+                    "success": len(
+                        [d for d in sorted_deployments if d.status == "SUCCESS"]
+                    ),
+                    "failed": len(
+                        [d for d in sorted_deployments if d.status == "FAILED"]
+                    ),
+                    "in_progress": len(
+                        [d for d in sorted_deployments if d.status == "IN_PROGRESS"]
+                    ),
+                },
+            },
         }
-        
+
         return sorted_deployments, 200, json_response

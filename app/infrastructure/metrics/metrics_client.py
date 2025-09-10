@@ -1,6 +1,8 @@
 import random
 from datetime import datetime, timedelta, timezone
+
 from app.domain.entities.metric import Metric
+
 
 class MetricsClient:
     async def fetch_metrics(self) -> list[Metric]:
@@ -11,7 +13,7 @@ class MetricsClient:
                 timestamp=now - timedelta(minutes=i),
                 name=random.choice(metrics),
                 value=round(random.uniform(0, 100), 2),
-                unit="percent"
+                unit="percent",
             )
             for i in range(5)
         ]
