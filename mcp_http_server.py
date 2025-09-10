@@ -1055,8 +1055,16 @@ async def post_mcp_tools_deploy_service_tool(
         body = await request.json()
         logger.info(f"🔧 MCP Tool: postMcpToolsDeployService received body: {body}")
         
-        # Extract arguments from MCP request body
-        arguments = body.get("params", {}).get("arguments", {}) if "params" in body else body
+        # Extract arguments from MCP request body - handle both formats
+        # Format 1: Cequence Gateway { "params": { "arguments": { ... } } }
+        # Format 2: Direct frontend { "arguments": { ... } }
+        if "params" in body and "arguments" in body["params"]:
+            arguments = body["params"]["arguments"]
+        elif "arguments" in body:
+            arguments = body["arguments"]
+        else:
+            arguments = body
+            
         service_name = arguments.get("service_name")
         version = arguments.get("version")
         environment = arguments.get("environment")
@@ -1110,8 +1118,16 @@ async def post_mcp_tools_rollback_deployment_tool(
         body = await request.json()
         logger.info(f"🔧 MCP Tool: postMcpToolsRollbackDeployment received body: {body}")
         
-        # Extract arguments from MCP request body
-        arguments = body.get("params", {}).get("arguments", {}) if "params" in body else body
+        # Extract arguments from MCP request body - handle both formats
+        # Format 1: Cequence Gateway { "params": { "arguments": { ... } } }
+        # Format 2: Direct frontend { "arguments": { ... } }
+        if "params" in body and "arguments" in body["params"]:
+            arguments = body["params"]["arguments"]
+        elif "arguments" in body:
+            arguments = body["arguments"]
+        else:
+            arguments = body
+            
         deployment_id = arguments.get("deployment_id")
         reason = arguments.get("reason")
         environment = arguments.get("environment")
