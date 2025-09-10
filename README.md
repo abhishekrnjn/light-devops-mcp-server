@@ -14,6 +14,15 @@ A Model Context Protocol (MCP) server over HTTP that provides DevOps operations 
 
 **Challenge Addressed:** Building an autonomous DevOps platform that enables AI agents to perform complex DevOps operations through a standardized Model Context Protocol (MCP) interface, with integrated security, monitoring, and role-based access controls for enterprise environments.
 
+
+## Demo Video Link
+
+[Demo video will be added here]
+
+## Github Repo link
+
+[https://github.com/abhishekrnjn/light-devops-mcp-server]
+
 ## What We Built
 
 This project is an autonomous DevOps MCP server that provides:
