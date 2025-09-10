@@ -115,7 +115,7 @@ class CequenceClient:
 
         headers = {
             "Content-Type": "application/json",
-            "Accept": "application/json, text/event-stream",
+            "Accept": "application/json",
             "MCP-Protocol-Version": self.protocol_version,
             "Mcp-Session-Id": self.session_id,
             "User-Agent": "DevOps-MCP-Server/1.0",
@@ -130,11 +130,24 @@ class CequenceClient:
         else:
             logger.warning(f"⚠️ InitializedNotification failed: {response.status_code}")
 
-    def _get_mcp_headers(self) -> Dict[str, str]:
-        """Get standard MCP headers for requests."""
+    def _get_mcp_headers(self, stream: bool = False) -> Dict[str, str]:
+        """Get standard MCP headers for requests.
+        
+        By default, only requests JSON responses to avoid the Gateway streaming
+        responses as Server-Sent Events (SSE), which causes multiple log entries
+        for what should be a single request.
+        
+        Args:
+            stream: If True, include text/event-stream in Accept header for SSE responses.
+                   Only use this when you actually need streaming responses.
+        """
+        accept_header = "application/json"
+        if stream:
+            accept_header = "application/json, text/event-stream"
+            
         headers = {
             "Content-Type": "application/json",
-            "Accept": "application/json, text/event-stream",
+            "Accept": accept_header,
             "MCP-Protocol-Version": self.protocol_version,
             "User-Agent": "DevOps-MCP-Server/1.0",
         }
@@ -143,6 +156,14 @@ class CequenceClient:
             headers["Mcp-Session-Id"] = self.session_id
 
         return headers
+
+    def _get_mcp_stream_headers(self) -> Dict[str, str]:
+        """Get MCP headers specifically for streaming requests (SSE).
+        
+        Use this only when you actually need Server-Sent Events streaming.
+        Most tool calls should use _get_mcp_headers() for JSON responses.
+        """
+        return self._get_mcp_headers(stream=True)
 
     async def forward_request(
         self,
@@ -228,7 +249,7 @@ class CequenceClient:
 
         logger.info(f"🔍 MCP request for logs: {json.dumps(mcp_request, indent=2)}")
 
-        request_headers = self._get_mcp_headers()
+        request_headers = self._get_mcp_headers(stream=False)
         # Forward authorization headers
         if "authorization" in headers:
             request_headers["Authorization"] = headers["authorization"]
@@ -280,7 +301,7 @@ class CequenceClient:
 
         logger.info(f"🔍 MCP request for metrics: {json.dumps(mcp_request, indent=2)}")
 
-        request_headers = self._get_mcp_headers()
+        request_headers = self._get_mcp_headers(stream=False)
         # Forward authorization headers
         if "authorization" in headers:
             request_headers["Authorization"] = headers["authorization"]
@@ -330,7 +351,7 @@ class CequenceClient:
             },
         }
 
-        request_headers = self._get_mcp_headers()
+        request_headers = self._get_mcp_headers(stream=False)
         # Forward authorization headers
         if "authorization" in headers:
             request_headers["Authorization"] = headers["authorization"]
@@ -370,7 +391,7 @@ class CequenceClient:
             },
         }
 
-        request_headers = self._get_mcp_headers()
+        request_headers = self._get_mcp_headers(stream=False)
         # Forward authorization headers
         if "authorization" in headers:
             request_headers["Authorization"] = headers["authorization"]
@@ -406,7 +427,7 @@ class CequenceClient:
             },
         }
 
-        request_headers = self._get_mcp_headers()
+        request_headers = self._get_mcp_headers(stream=False)
         # Forward authorization headers
         if "authorization" in headers:
             request_headers["Authorization"] = headers["authorization"]
@@ -442,7 +463,7 @@ class CequenceClient:
             },
         }
 
-        request_headers = self._get_mcp_headers()
+        request_headers = self._get_mcp_headers(stream=False)
         # Forward authorization headers
         if "authorization" in headers:
             request_headers["Authorization"] = headers["authorization"]
