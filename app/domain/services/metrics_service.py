@@ -2,7 +2,6 @@
 from typing import List
 from app.infrastructure.datadog.metrics_client import DatadogMetricsClient
 from app.infrastructure.metrics.metrics_client import MetricsClient
-from app.domain.entities.metrics_aggregation import MetricsAggregation
 from app.config import settings
 
 class MetricsService:
@@ -15,7 +14,7 @@ class MetricsService:
             self.client = MetricsClient()
             self.client_type = "mock"
 
-    async def get_recent_metrics(self, user_permissions: List[str] = None, fetch_historical: bool = False, limit: int = None) -> MetricsAggregation:
+    async def get_recent_metrics(self, user_permissions: List[str] = None, fetch_historical: bool = False, limit: int = None):
         """Get recent metrics.
         
         Args:
@@ -26,18 +25,4 @@ class MetricsService:
         if self.client_type == "datadog":
             return await self.client.fetch_data(user_permissions=user_permissions, fetch_historical=fetch_historical, limit=limit)
         else:
-            metrics = await self.client.fetch_metrics()
-            
-            # Create MetricsAggregation from mock metrics
-            return MetricsAggregation(
-                summary=f"Retrieved {len(metrics)} mock metric entries",
-                total_count=len(metrics),
-                service_filter="ALL",
-                time_range="last 7 days",
-                metrics_preview=f"{len(metrics)} mock metric entries for demonstration",
-                filters_applied={
-                    "limit": limit,
-                    "service": "mock"
-                },
-                source="mock"
-            )
+            return await self.client.fetch_metrics()

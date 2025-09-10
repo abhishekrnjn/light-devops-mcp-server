@@ -411,17 +411,29 @@ async def get_logs(
     # Direct mode (original implementation)
     try:
         check_permission(user, "read_logs", "read logs")
-        log_aggregation = await log_service.get_recent_logs(
+        logs = await log_service.get_recent_logs(
             user_permissions=user.permissions,
             level=level,
             limit=limit
         )
         
-        # Return single aggregated response to prevent Cequence from breaking into multiple calls
+        # Apply limit
+        logs = logs[:limit]
+        
         return {
-            "tool": "getMcpResourcesLogs",
-            "success": True,
-            "result": log_aggregation.to_dict()
+            "uri": "logs",
+            "type": "logs",
+            "count": len(logs),
+            "filters": {"level": level, "limit": limit},
+            "data": [
+                {
+                    "level": log.level,
+                    "message": log.message,
+                    "timestamp": log.timestamp,
+                    "source": getattr(log, 'source', 'system')
+                }
+                for log in logs
+            ]
         }
     
     except Exception as e:
@@ -467,16 +479,28 @@ async def get_metrics(
     # Direct mode (original implementation)
     try:
         check_permission(user, "read_metrics", "read metrics")
-        metrics_aggregation = await metrics_service.get_recent_metrics(
+        metrics = await metrics_service.get_recent_metrics(
             user_permissions=user.permissions,
             limit=limit
         )
         
-        # Return single aggregated response to prevent Cequence from breaking into multiple calls
+        # Apply limit
+        metrics = metrics[:limit]
+        
         return {
-            "tool": "getMcpResourcesMetrics",
-            "success": True,
-            "result": metrics_aggregation.to_dict()
+            "uri": "metrics",
+            "type": "metrics",
+            "count": len(metrics),
+            "filters": {"limit": limit},
+            "data": [
+                {
+                    "name": metric.name,
+                    "value": metric.value,
+                    "unit": metric.unit,
+                    "timestamp": getattr(metric, 'timestamp', datetime.now().isoformat())
+                }
+                for metric in metrics
+            ]
         }
     
     except Exception as e:
@@ -611,35 +635,20 @@ async def list_tools(user: UserPrincipal = Depends(get_current_user)):
 
 @app.post("/mcp/tools/deploy_service")
 async def deploy_service_tool(
+    tool_request: ToolCallRequest,
     request: Request,
     user: UserPrincipal = Depends(get_current_user)
 ):
     """Deploy a service to a specific environment."""
-    # Parse request body manually
-    try:
-        body = await request.json()
-        logger.info(f"🔧 Deploy service tool called with body: {body}")
-        
-        # Extract arguments - handle both formats
-        if "arguments" in body:
-            arguments = body["arguments"]
-        else:
-            arguments = body
-            
-        logger.info(f"🔧 Extracted arguments: {arguments}")
-        
-        service_name = arguments.get("service_name")
-        version = arguments.get("version")
-        environment = arguments.get("environment")
-        
-        logger.info(f"🔧 Extracted parameters: service_name={service_name}, version={version}, environment={environment}")
-        
-        # Validate required parameters
-        validate_tool_arguments(arguments, ["service_name", "version", "environment"])
-        
-    except Exception as e:
-        logger.error(f"❌ Error parsing request body: {e}")
-        raise HTTPException(status_code=400, detail=f"Invalid request body: {str(e)}")
+    logger.info(f"🔧 Deploy service tool called with arguments: {tool_request.arguments}")
+    
+    # Extract arguments
+    service_name = tool_request.arguments.get("service_name")
+    version = tool_request.arguments.get("version")
+    environment = tool_request.arguments.get("environment")
+    
+    # Validate required parameters
+    validate_tool_arguments(tool_request.arguments, ["service_name", "version", "environment"])
     
     # Check environment-specific permissions
     if environment == "production":
@@ -688,35 +697,20 @@ async def deploy_service_tool(
 
 @app.post("/mcp/tools/rollback_deployment")
 async def rollback_deployment_tool(
+    tool_request: ToolCallRequest,
     request: Request,
     user: UserPrincipal = Depends(get_current_user)
 ):
     """Rollback a deployment to previous version."""
-    # Parse request body manually
-    try:
-        body = await request.json()
-        logger.info(f"🔧 Rollback deployment tool called with body: {body}")
-        
-        # Extract arguments - handle both formats
-        if "arguments" in body:
-            arguments = body["arguments"]
-        else:
-            arguments = body
-            
-        logger.info(f"🔧 Extracted arguments: {arguments}")
-        
-        deployment_id = arguments.get("deployment_id")
-        reason = arguments.get("reason")
-        environment = arguments.get("environment")
-        
-        logger.info(f"🔧 Extracted parameters: deployment_id={deployment_id}, reason={reason}, environment={environment}")
-        
-        # Validate required parameters
-        validate_tool_arguments(arguments, ["deployment_id", "reason", "environment"])
-        
-    except Exception as e:
-        logger.error(f"❌ Error parsing request body: {e}")
-        raise HTTPException(status_code=400, detail=f"Invalid request body: {str(e)}")
+    logger.info(f"🔧 Rollback deployment tool called with arguments: {tool_request.arguments}")
+    
+    # Extract arguments
+    deployment_id = tool_request.arguments.get("deployment_id")
+    reason = tool_request.arguments.get("reason")
+    environment = tool_request.arguments.get("environment")
+    
+    # Validate required parameters
+    validate_tool_arguments(tool_request.arguments, ["deployment_id", "reason", "environment"])
     
     # Check environment-specific permissions
     if environment == "production":
@@ -1085,16 +1079,8 @@ async def post_mcp_tools_deploy_service_tool(
         body = await request.json()
         logger.info(f"🔧 MCP Tool: postMcpToolsDeployService received body: {body}")
         
-        # Extract arguments from MCP request body - handle both formats
-        # Format 1: Cequence Gateway { "params": { "arguments": { ... } } }
-        # Format 2: Direct frontend { "arguments": { ... } }
-        if "params" in body and "arguments" in body["params"]:
-            arguments = body["params"]["arguments"]
-        elif "arguments" in body:
-            arguments = body["arguments"]
-        else:
-            arguments = body
-            
+        # Extract arguments from MCP request body
+        arguments = body.get("params", {}).get("arguments", {}) if "params" in body else body
         service_name = arguments.get("service_name")
         version = arguments.get("version")
         environment = arguments.get("environment")
@@ -1148,16 +1134,8 @@ async def post_mcp_tools_rollback_deployment_tool(
         body = await request.json()
         logger.info(f"🔧 MCP Tool: postMcpToolsRollbackDeployment received body: {body}")
         
-        # Extract arguments from MCP request body - handle both formats
-        # Format 1: Cequence Gateway { "params": { "arguments": { ... } } }
-        # Format 2: Direct frontend { "arguments": { ... } }
-        if "params" in body and "arguments" in body["params"]:
-            arguments = body["params"]["arguments"]
-        elif "arguments" in body:
-            arguments = body["arguments"]
-        else:
-            arguments = body
-            
+        # Extract arguments from MCP request body
+        arguments = body.get("params", {}).get("arguments", {}) if "params" in body else body
         deployment_id = arguments.get("deployment_id")
         reason = arguments.get("reason")
         environment = arguments.get("environment")
