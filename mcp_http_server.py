@@ -411,29 +411,17 @@ async def get_logs(
     # Direct mode (original implementation)
     try:
         check_permission(user, "read_logs", "read logs")
-        logs = await log_service.get_recent_logs(
+        log_aggregation = await log_service.get_recent_logs(
             user_permissions=user.permissions,
             level=level,
             limit=limit
         )
         
-        # Apply limit
-        logs = logs[:limit]
-        
+        # Return single aggregated response to prevent Cequence from breaking into multiple calls
         return {
-            "uri": "logs",
-            "type": "logs",
-            "count": len(logs),
-            "filters": {"level": level, "limit": limit},
-            "data": [
-                {
-                    "level": log.level,
-                    "message": log.message,
-                    "timestamp": log.timestamp,
-                    "source": getattr(log, 'source', 'system')
-                }
-                for log in logs
-            ]
+            "tool": "getMcpResourcesLogs",
+            "success": True,
+            "result": log_aggregation.to_dict()
         }
     
     except Exception as e:
@@ -479,28 +467,16 @@ async def get_metrics(
     # Direct mode (original implementation)
     try:
         check_permission(user, "read_metrics", "read metrics")
-        metrics = await metrics_service.get_recent_metrics(
+        metrics_aggregation = await metrics_service.get_recent_metrics(
             user_permissions=user.permissions,
             limit=limit
         )
         
-        # Apply limit
-        metrics = metrics[:limit]
-        
+        # Return single aggregated response to prevent Cequence from breaking into multiple calls
         return {
-            "uri": "metrics",
-            "type": "metrics",
-            "count": len(metrics),
-            "filters": {"limit": limit},
-            "data": [
-                {
-                    "name": metric.name,
-                    "value": metric.value,
-                    "unit": metric.unit,
-                    "timestamp": getattr(metric, 'timestamp', datetime.now().isoformat())
-                }
-                for metric in metrics
-            ]
+            "tool": "getMcpResourcesMetrics",
+            "success": True,
+            "result": metrics_aggregation.to_dict()
         }
     
     except Exception as e:
