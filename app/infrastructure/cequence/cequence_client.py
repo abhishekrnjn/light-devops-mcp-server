@@ -231,7 +231,15 @@ class CequenceClient:
         if "authorization" in headers:
             request_headers["Authorization"] = headers["authorization"]
         if "cookie" in headers:
-            request_headers["Cookie"] = headers["cookie"]
+            # Use only the first occurrence of each cookie to prevent accumulation
+            cookie_parts = headers["cookie"].split(';')
+            first_occurrence = {}
+            for part in cookie_parts:
+                if '=' in part:
+                    name = part.strip().split('=')[0]
+                    if name not in first_occurrence:
+                        first_occurrence[name] = part.strip()
+            request_headers["Cookie"] = '; '.join(first_occurrence.values())
         
         logger.info(f"🔍 Request headers: {request_headers}")
         logger.info(f"🔍 Gateway URL: {self.gateway_url}")
@@ -283,7 +291,15 @@ class CequenceClient:
         if "authorization" in headers:
             request_headers["Authorization"] = headers["authorization"]
         if "cookie" in headers:
-            request_headers["Cookie"] = headers["cookie"]
+            # Use only the first occurrence of each cookie to prevent accumulation
+            cookie_parts = headers["cookie"].split(';')
+            first_occurrence = {}
+            for part in cookie_parts:
+                if '=' in part:
+                    name = part.strip().split('=')[0]
+                    if name not in first_occurrence:
+                        first_occurrence[name] = part.strip()
+            request_headers["Cookie"] = '; '.join(first_occurrence.values())
         
         logger.info(f"🔍 Request headers: {request_headers}")
         logger.info(f"🔍 Gateway URL: {self.gateway_url}")
@@ -331,7 +347,15 @@ class CequenceClient:
         if "authorization" in headers:
             request_headers["Authorization"] = headers["authorization"]
         if "cookie" in headers:
-            request_headers["Cookie"] = headers["cookie"]
+            # Use only the first occurrence of each cookie to prevent accumulation
+            cookie_parts = headers["cookie"].split(';')
+            first_occurrence = {}
+            for part in cookie_parts:
+                if '=' in part:
+                    name = part.strip().split('=')[0]
+                    if name not in first_occurrence:
+                        first_occurrence[name] = part.strip()
+            request_headers["Cookie"] = '; '.join(first_occurrence.values())
         
         return await self.client.post(
             self.gateway_url,
@@ -369,7 +393,15 @@ class CequenceClient:
         if "authorization" in headers:
             request_headers["Authorization"] = headers["authorization"]
         if "cookie" in headers:
-            request_headers["Cookie"] = headers["cookie"]
+            # Use only the first occurrence of each cookie to prevent accumulation
+            cookie_parts = headers["cookie"].split(';')
+            first_occurrence = {}
+            for part in cookie_parts:
+                if '=' in part:
+                    name = part.strip().split('=')[0]
+                    if name not in first_occurrence:
+                        first_occurrence[name] = part.strip()
+            request_headers["Cookie"] = '; '.join(first_occurrence.values())
         
         return await self.client.post(
             self.gateway_url,
@@ -405,7 +437,15 @@ class CequenceClient:
         if "authorization" in headers:
             request_headers["Authorization"] = headers["authorization"]
         if "cookie" in headers:
-            request_headers["Cookie"] = headers["cookie"]
+            # Use only the first occurrence of each cookie to prevent accumulation
+            cookie_parts = headers["cookie"].split(';')
+            first_occurrence = {}
+            for part in cookie_parts:
+                if '=' in part:
+                    name = part.strip().split('=')[0]
+                    if name not in first_occurrence:
+                        first_occurrence[name] = part.strip()
+            request_headers["Cookie"] = '; '.join(first_occurrence.values())
         
         return await self.client.post(
             self.gateway_url,
@@ -441,7 +481,15 @@ class CequenceClient:
         if "authorization" in headers:
             request_headers["Authorization"] = headers["authorization"]
         if "cookie" in headers:
-            request_headers["Cookie"] = headers["cookie"]
+            # Use only the first occurrence of each cookie to prevent accumulation
+            cookie_parts = headers["cookie"].split(';')
+            first_occurrence = {}
+            for part in cookie_parts:
+                if '=' in part:
+                    name = part.strip().split('=')[0]
+                    if name not in first_occurrence:
+                        first_occurrence[name] = part.strip()
+            request_headers["Cookie"] = '; '.join(first_occurrence.values())
         
         return await self.client.post(
             self.gateway_url,
