@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class CequenceRouter(GatewayRouter):
     """
     Router implementation for Cequence Gateway.
-    
+
     Routes all requests through the Cequence Gateway for audit and monitoring,
     with fallback to direct mode if the gateway is unavailable.
     """
@@ -40,21 +40,25 @@ class CequenceRouter(GatewayRouter):
     ) -> Dict[str, Any]:
         """Get logs through Cequence Gateway with immediate dummy response."""
         logger.info("🌐 Routing logs request through Cequence Gateway")
-        
+
         # Check permissions
         self.check_permission(user, "read_logs", "read logs")
-        
+
         # Return immediate dummy data while real API call is in progress
-        logger.info("⚡ IMMEDIATE RESPONSE: Returning dummy logs while Cequence call is in progress")
-        dummy_logs = self.dummy_generator.generate_logs(count=min(limit, 15), level=level)
-        
+        logger.info(
+            "⚡ IMMEDIATE RESPONSE: Returning dummy logs while Cequence call is in progress"
+        )
+        dummy_logs = self.dummy_generator.generate_logs(
+            count=min(limit, 15), level=level
+        )
+
         # Start the real API call in background (fire and forget for now)
         asyncio.create_task(
             cequence_client.get_logs(
                 headers=headers, level=level, limit=limit, since=since
             )
         )
-        
+
         return {
             "uri": "logs",
             "type": "logs",
@@ -74,21 +78,23 @@ class CequenceRouter(GatewayRouter):
     ) -> Dict[str, Any]:
         """Get metrics through Cequence Gateway with immediate dummy response."""
         logger.info("🌐 Routing metrics request through Cequence Gateway")
-        
+
         # Check permissions
         self.check_permission(user, "read_metrics", "read metrics")
-        
+
         # Return immediate dummy data while real API call is in progress
-        logger.info("⚡ IMMEDIATE RESPONSE: Returning dummy metrics while Cequence call is in progress")
-        dummy_metrics = self.dummy_generator.generate_metrics(count=min(limit, 10), service=service)
-        
+        logger.info(
+            "⚡ IMMEDIATE RESPONSE: Returning dummy metrics while Cequence call is in progress"
+        )
+        dummy_metrics = self.dummy_generator.generate_metrics(
+            count=min(limit, 10), service=service
+        )
+
         # Start the real API call in background (fire and forget for now)
         asyncio.create_task(
-            cequence_client.get_metrics(
-                headers=headers, limit=limit, service=service
-            )
+            cequence_client.get_metrics(headers=headers, limit=limit, service=service)
         )
-        
+
         return {
             "uri": "metrics",
             "type": "metrics",
@@ -109,13 +115,13 @@ class CequenceRouter(GatewayRouter):
     ) -> Dict[str, Any]:
         """Deploy service through Cequence Gateway."""
         logger.info("🌐 Routing deploy service request through Cequence Gateway")
-        
+
         # Check environment-specific permissions
         if environment == "production":
             self.check_permission(user, "deploy_production", "deploy to production")
         elif environment == "staging":
             self.check_permission(user, "deploy_staging", "deploy to staging")
-        
+
         try:
             response = await cequence_client.deploy_service(
                 headers=headers,
@@ -139,19 +145,22 @@ class CequenceRouter(GatewayRouter):
     ) -> Dict[str, Any]:
         """Rollback deployment through Cequence Gateway."""
         logger.info("🌐 Routing rollback deployment request through Cequence Gateway")
-        
+
         # Check environment-specific permissions
         if environment == "production":
-            self.check_permission(user, "rollback_production", "perform production rollbacks")
+            self.check_permission(
+                user, "rollback_production", "perform production rollbacks"
+            )
         elif environment == "staging":
             self.check_permission(user, "rollback_staging", "perform staging rollbacks")
         else:
             from fastapi import HTTPException
+
             raise HTTPException(
                 status_code=400,
                 detail="Invalid environment. Must be 'staging' or 'production'",
             )
-        
+
         try:
             response = await cequence_client.rollback_deployment(
                 headers=headers,
@@ -174,22 +183,22 @@ class CequenceRouter(GatewayRouter):
     ) -> Dict[str, Any]:
         """Authenticate user through Cequence Gateway."""
         logger.info("🌐 Routing authenticate user request through Cequence Gateway")
-        
+
         # This tool is handled directly by the MCP server without Cequence Gateway routing
         # But we still go through the gateway for consistency
         try:
             from app.infrastructure.auth.descope_client import descope_client
-            
+
             # Validate session with Descope
             jwt_response = descope_client.validate_session(
                 session_token=session_token, refresh_token=refresh_token
             )
-            
+
             # Extract user principal
             user_principal = descope_client.extract_user_principal(
                 jwt_response, session_token
             )
-            
+
             return {
                 "tool": "authenticate_user",
                 "success": True,
@@ -253,4 +262,3 @@ class CequenceRouter(GatewayRouter):
                 f"⚠️ Cequence Gateway returned {response.status_code} for {operation}, falling back to direct mode"
             )
             raise Exception(f"Gateway error: {response.status_code}")
-

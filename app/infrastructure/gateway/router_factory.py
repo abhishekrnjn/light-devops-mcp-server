@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class RouterFactory:
     """
     Factory class for creating gateway routers.
-    
+
     This factory creates the appropriate router based on configuration
     settings, providing a single point of control for router selection.
     """
@@ -30,23 +30,23 @@ class RouterFactory:
     def get_router(cls) -> GatewayRouter:
         """
         Get the appropriate gateway router based on configuration.
-        
+
         Returns:
             GatewayRouter: The configured router instance
-            
+
         Raises:
             ValueError: If no valid router configuration is found
         """
         if cls._instance is None:
             cls._instance = cls._create_router()
-        
+
         return cls._instance
 
     @classmethod
     def _create_router(cls) -> GatewayRouter:
         """
         Create a new router instance based on configuration.
-        
+
         Returns:
             GatewayRouter: The configured router instance
         """
@@ -61,7 +61,7 @@ class RouterFactory:
     def reset(cls) -> None:
         """
         Reset the router instance.
-        
+
         This is useful for testing or when configuration changes
         and a new router needs to be created.
         """
@@ -72,7 +72,7 @@ class RouterFactory:
     def get_router_type(cls) -> str:
         """
         Get the type of router that will be created.
-        
+
         Returns:
             str: The router type ('cequence' or 'direct')
         """

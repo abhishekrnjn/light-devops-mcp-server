@@ -17,13 +17,13 @@ from app.dependencies import get_current_user
 from app.domain.services.mcp_service import MCPResourceService
 from app.schemas.auth import UserPrincipal
 from app.schemas.mcp import (
-    MCPResourceList,
-    LogsResponse,
-    MetricsResponse,
-    LogsResourceRequest,
-    MetricsResourceRequest,
     LogEntry,
+    LogsResourceRequest,
+    LogsResponse,
+    MCPResourceList,
     MetricEntry,
+    MetricsResourceRequest,
+    MetricsResponse,
 )
 
 # Configure logging
@@ -40,11 +40,8 @@ mcp_resource_service = MCPResourceService()
 async def list_resources(user: UserPrincipal = Depends(get_current_user)):
     """List all available MCP resources."""
     from app.schemas.mcp.resources import MCP_RESOURCES
-    
-    return MCPResourceList(
-        resources=MCP_RESOURCES,
-        total=len(MCP_RESOURCES)
-    )
+
+    return MCPResourceList(resources=MCP_RESOURCES, total=len(MCP_RESOURCES))
 
 
 @router.get("/logs", response_model=LogsResponse)
@@ -58,25 +55,22 @@ async def get_logs(
 ):
     """Get system logs with optional filtering capabilities."""
     logger.info("📖 Reading logs resource")
-    
+
     try:
         # Validate request parameters
         request_data = LogsResourceRequest(
-            level=level,
-            limit=limit,
-            since=since,
-            service=service
+            level=level, limit=limit, since=since, service=service
         )
-        
+
         headers = dict(request.headers)
         result = await mcp_resource_service.get_logs(
-            headers=headers, 
-            user=user, 
-            level=request_data.level, 
-            limit=request_data.limit, 
-            since=request_data.since
+            headers=headers,
+            user=user,
+            level=request_data.level,
+            limit=request_data.limit,
+            since=request_data.since,
         )
-        
+
         # Convert to LogsResponse model
         return LogsResponse(
             success=True,
@@ -87,11 +81,11 @@ async def get_logs(
                 "level": request_data.level,
                 "limit": request_data.limit,
                 "since": request_data.since,
-                "service": request_data.service
+                "service": request_data.service,
             },
             data=[LogEntry(**log) for log in result.get("data", [])],
             loading=result.get("loading", False),
-            message=result.get("message")
+            message=result.get("message"),
         )
     except Exception as e:
         logger.error(f"❌ Error reading logs: {e}")
@@ -109,24 +103,21 @@ async def get_metrics(
 ):
     """Get system metrics with optional filtering capabilities."""
     logger.info("📖 Reading metrics resource")
-    
+
     try:
         # Validate request parameters
         request_data = MetricsResourceRequest(
-            limit=limit,
-            service=service,
-            metric_type=metric_type,
-            time_range=time_range
+            limit=limit, service=service, metric_type=metric_type, time_range=time_range
         )
-        
+
         headers = dict(request.headers)
         result = await mcp_resource_service.get_metrics(
-            headers=headers, 
-            user=user, 
-            limit=request_data.limit, 
-            service=request_data.service
+            headers=headers,
+            user=user,
+            limit=request_data.limit,
+            service=request_data.service,
         )
-        
+
         # Convert to MetricsResponse model
         return MetricsResponse(
             success=True,
@@ -137,11 +128,11 @@ async def get_metrics(
                 "limit": request_data.limit,
                 "service": request_data.service,
                 "metric_type": request_data.metric_type,
-                "time_range": request_data.time_range
+                "time_range": request_data.time_range,
             },
             data=[MetricEntry(**metric) for metric in result.get("data", [])],
             loading=result.get("loading", False),
-            message=result.get("message")
+            message=result.get("message"),
         )
     except Exception as e:
         logger.error(f"❌ Error reading metrics: {e}")
@@ -158,10 +149,10 @@ async def read_resource(
 ):
     """Read a specific MCP resource by URI path with optional query parameters."""
     logger.info(f"📖 Reading resource: {resource_path}")
-    
+
     try:
         headers = dict(request.headers)
-        
+
         if resource_path == "logs":
             result = await mcp_resource_service.get_logs(
                 headers=headers, user=user, level=level, limit=limit

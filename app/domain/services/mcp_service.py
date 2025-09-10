@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class MCPResourceService:
     """
     Service for handling MCP resource operations.
-    
+
     This service provides methods for reading MCP resources (logs, metrics)
     through the appropriate gateway router.
     """
@@ -36,14 +36,14 @@ class MCPResourceService:
     ) -> Dict[str, Any]:
         """
         Get system logs.
-        
+
         Args:
             headers: HTTP headers from the request
             user: Authenticated user principal
             level: Optional log level filter
             limit: Maximum number of logs to return
             since: Optional timestamp filter
-            
+
         Returns:
             Dictionary containing logs data
         """
@@ -57,6 +57,7 @@ class MCPResourceService:
             if RouterFactory.get_router_type() == "cequence":
                 logger.info("🔄 Falling back to direct mode for logs")
                 from app.infrastructure.gateway.direct_router import DirectRouter
+
                 direct_router = DirectRouter()
                 return await direct_router.get_logs(
                     headers=headers, user=user, level=level, limit=limit, since=since
@@ -72,13 +73,13 @@ class MCPResourceService:
     ) -> Dict[str, Any]:
         """
         Get system metrics.
-        
+
         Args:
             headers: HTTP headers from the request
             user: Authenticated user principal
             limit: Maximum number of metrics to return
             service: Optional service filter
-            
+
         Returns:
             Dictionary containing metrics data
         """
@@ -92,6 +93,7 @@ class MCPResourceService:
             if RouterFactory.get_router_type() == "cequence":
                 logger.info("🔄 Falling back to direct mode for metrics")
                 from app.infrastructure.gateway.direct_router import DirectRouter
+
                 direct_router = DirectRouter()
                 return await direct_router.get_metrics(
                     headers=headers, user=user, limit=limit, service=service
@@ -102,7 +104,7 @@ class MCPResourceService:
 class MCPToolService:
     """
     Service for handling MCP tool operations.
-    
+
     This service provides methods for executing MCP tools (deploy, rollback, auth)
     through the appropriate gateway router.
     """
@@ -121,14 +123,14 @@ class MCPToolService:
     ) -> Dict[str, Any]:
         """
         Deploy a service.
-        
+
         Args:
             headers: HTTP headers from the request
             user: Authenticated user principal
             service_name: Name of the service to deploy
             version: Version to deploy
             environment: Target environment
-            
+
         Returns:
             Dictionary containing deployment result
         """
@@ -146,6 +148,7 @@ class MCPToolService:
             if RouterFactory.get_router_type() == "cequence":
                 logger.info("🔄 Falling back to direct mode for deploy service")
                 from app.infrastructure.gateway.direct_router import DirectRouter
+
                 direct_router = DirectRouter()
                 return await direct_router.deploy_service(
                     headers=headers,
@@ -166,14 +169,14 @@ class MCPToolService:
     ) -> Dict[str, Any]:
         """
         Rollback a deployment.
-        
+
         Args:
             headers: HTTP headers from the request
             user: Authenticated user principal
             deployment_id: ID of the deployment to rollback
             reason: Reason for the rollback
             environment: Environment to rollback
-            
+
         Returns:
             Dictionary containing rollback result
         """
@@ -191,6 +194,7 @@ class MCPToolService:
             if RouterFactory.get_router_type() == "cequence":
                 logger.info("🔄 Falling back to direct mode for rollback deployment")
                 from app.infrastructure.gateway.direct_router import DirectRouter
+
                 direct_router = DirectRouter()
                 return await direct_router.rollback_deployment(
                     headers=headers,
@@ -210,13 +214,13 @@ class MCPToolService:
     ) -> Dict[str, Any]:
         """
         Authenticate user.
-        
+
         Args:
             headers: HTTP headers from the request
             user: Authenticated user principal
             session_token: Descope session token
             refresh_token: Optional refresh token
-            
+
         Returns:
             Dictionary containing authentication result
         """
@@ -233,6 +237,7 @@ class MCPToolService:
             if RouterFactory.get_router_type() == "cequence":
                 logger.info("🔄 Falling back to direct mode for authenticate user")
                 from app.infrastructure.gateway.direct_router import DirectRouter
+
                 direct_router = DirectRouter()
                 return await direct_router.authenticate_user(
                     headers=headers,

@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 class DirectRouter(GatewayRouter):
     """
     Router implementation for direct service calls.
-    
+
     Routes all requests directly to the appropriate services without
     going through any external gateway.
     """
@@ -47,10 +47,10 @@ class DirectRouter(GatewayRouter):
     ) -> Dict[str, Any]:
         """Get logs directly from the log service."""
         logger.info("📖 Reading logs resource (direct mode)")
-        
+
         # Check permissions
         self.check_permission(user, "read_logs", "read logs")
-        
+
         try:
             logs = await self.log_service.get_recent_logs(
                 user_permissions=user.permissions, level=level, limit=limit
@@ -77,6 +77,7 @@ class DirectRouter(GatewayRouter):
         except Exception as e:
             logger.error(f"❌ Error reading logs: {e}")
             from fastapi import HTTPException
+
             raise HTTPException(status_code=500, detail=str(e))
 
     async def get_metrics(
@@ -88,10 +89,10 @@ class DirectRouter(GatewayRouter):
     ) -> Dict[str, Any]:
         """Get metrics directly from the metrics service."""
         logger.info("📖 Reading metrics resource (direct mode)")
-        
+
         # Check permissions
         self.check_permission(user, "read_metrics", "read metrics")
-        
+
         try:
             metrics = await self.metrics_service.get_recent_metrics(
                 user_permissions=user.permissions, limit=limit
@@ -120,6 +121,7 @@ class DirectRouter(GatewayRouter):
         except Exception as e:
             logger.error(f"❌ Error reading metrics: {e}")
             from fastapi import HTTPException
+
             raise HTTPException(status_code=500, detail=str(e))
 
     async def deploy_service(
@@ -132,13 +134,13 @@ class DirectRouter(GatewayRouter):
     ) -> Dict[str, Any]:
         """Deploy service directly through the deploy service."""
         logger.info("🔧 Deploy service (direct mode)")
-        
+
         # Check environment-specific permissions
         if environment == "production":
             self.check_permission(user, "deploy_production", "deploy to production")
         elif environment == "staging":
             self.check_permission(user, "deploy_staging", "deploy to staging")
-        
+
         try:
             # Perform deployment
             deployment, http_status, json_response = await self.deploy_service.deploy(
@@ -160,26 +162,33 @@ class DirectRouter(GatewayRouter):
     ) -> Dict[str, Any]:
         """Rollback deployment directly through the rollback service."""
         logger.info("🔧 Rollback deployment (direct mode)")
-        
+
         # Check environment-specific permissions
         if environment == "production":
-            self.check_permission(user, "rollback_production", "perform production rollbacks")
+            self.check_permission(
+                user, "rollback_production", "perform production rollbacks"
+            )
         elif environment == "staging":
             self.check_permission(user, "rollback_staging", "perform staging rollbacks")
         else:
             from fastapi import HTTPException
+
             raise HTTPException(
                 status_code=400,
                 detail="Invalid environment. Must be 'staging' or 'production'",
             )
-        
+
         try:
             # Perform rollback using unified service method
             rollback, http_status, json_response = await self.rollback_service.rollback(
                 deployment_id, reason, environment=environment
             )
 
-            return {"tool": "rollback_deployment", "success": True, "result": json_response}
+            return {
+                "tool": "rollback_deployment",
+                "success": True,
+                "result": json_response,
+            }
         except Exception as e:
             logger.error(f"❌ Error executing rollback_deployment: {e}")
             return {"tool": "rollback_deployment", "success": False, "error": str(e)}
@@ -193,7 +202,7 @@ class DirectRouter(GatewayRouter):
     ) -> Dict[str, Any]:
         """Authenticate user directly through Descope."""
         logger.info("🔧 Authenticate user (direct mode)")
-        
+
         try:
             # Validate session with Descope
             jwt_response = descope_client.validate_session(

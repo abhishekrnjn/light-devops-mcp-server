@@ -7,8 +7,8 @@ This package contains all the route handlers organized by functionality:
 - health: Health check and root endpoints
 """
 
+from .health import router as health_router
 from .resources import router as resources_router
 from .tools import router as tools_router
-from .health import router as health_router
 
 __all__ = ["resources_router", "tools_router", "health_router"]

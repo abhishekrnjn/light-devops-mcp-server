@@ -5,8 +5,8 @@ This module provides realistic dummy data generation for immediate UI responses
 while real API calls are being processed in the background.
 """
 
-import random
 import logging
+import random
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class DummyDataGenerator:
     """
     Generator for realistic dummy data used in immediate responses.
-    
+
     This class provides methods to generate realistic dummy data for logs,
     metrics, and other data types to provide immediate UI feedback while
     real API calls are being processed in the background.
@@ -138,21 +138,26 @@ class DummyDataGenerator:
         self.base_time = datetime.now(timezone.utc)
 
     def generate_logs(
-        self, count: int = 10, level: Optional[str] = None, service: Optional[str] = None
+        self,
+        count: int = 10,
+        level: Optional[str] = None,
+        service: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Generate realistic dummy logs for immediate UI population.
-        
+
         Args:
             count: Number of log entries to generate
             level: Optional log level filter (DEBUG, INFO, WARN, ERROR)
             service: Optional service name filter
-            
+
         Returns:
             List of log entry dictionaries
         """
-        logger.debug(f"Generating {count} dummy logs with level={level}, service={service}")
-        
+        logger.debug(
+            f"Generating {count} dummy logs with level={level}, service={service}"
+        )
+
         dummy_logs = []
         templates_to_use = self.LOG_TEMPLATES
 
@@ -167,16 +172,16 @@ class DummyDataGenerator:
 
         for i in range(count):
             template = random.choice(templates_to_use)
-            
+
             # Generate realistic values for placeholders
             message = self._format_log_message(template["message"])
-            
+
             # Generate timestamp (more recent logs first)
             log_time = self.base_time - timedelta(minutes=i * random.randint(1, 5))
-            
+
             # Generate service name if not specified
             log_service = service or random.choice(self.SERVICE_NAMES)
-            
+
             dummy_logs.append(
                 {
                     "level": template["level"],
@@ -190,27 +195,34 @@ class DummyDataGenerator:
         return dummy_logs
 
     def generate_metrics(
-        self, count: int = 5, service: Optional[str] = None, metric_type: Optional[str] = None
+        self,
+        count: int = 5,
+        service: Optional[str] = None,
+        metric_type: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Generate realistic dummy metrics for immediate UI population.
-        
+
         Args:
             count: Number of metrics to generate
             service: Optional service name filter
             metric_type: Optional metric type filter
-            
+
         Returns:
             List of metric dictionaries
         """
-        logger.debug(f"Generating {count} dummy metrics with service={service}, type={metric_type}")
-        
+        logger.debug(
+            f"Generating {count} dummy metrics with service={service}, type={metric_type}"
+        )
+
         dummy_metrics = []
         configs_to_use = self.METRIC_CONFIGS
 
         # Filter by metric type if specified
         if metric_type:
-            configs_to_use = [c for c in self.METRIC_CONFIGS if metric_type.lower() in c[0].lower()]
+            configs_to_use = [
+                c for c in self.METRIC_CONFIGS if metric_type.lower() in c[0].lower()
+            ]
             if not configs_to_use:
                 configs_to_use = self.METRIC_CONFIGS[:count]
 
@@ -248,21 +260,23 @@ class DummyDataGenerator:
     ) -> Dict[str, Any]:
         """
         Generate realistic dummy deployment data.
-        
+
         Args:
             service_name: Name of the service being deployed
             version: Version being deployed
             environment: Target environment
-            
+
         Returns:
             Dictionary containing deployment data
         """
-        logger.debug(f"Generating dummy deployment data for {service_name} v{version} to {environment}")
-        
+        logger.debug(
+            f"Generating dummy deployment data for {service_name} v{version} to {environment}"
+        )
+
         deployment_id = f"deploy-{random.randint(100000, 999999)}"
         statuses = ["pending", "in_progress", "completed", "failed"]
         status = random.choice(statuses)
-        
+
         return {
             "deployment_id": deployment_id,
             "service_name": service_name,
@@ -281,21 +295,23 @@ class DummyDataGenerator:
     ) -> Dict[str, Any]:
         """
         Generate realistic dummy rollback data.
-        
+
         Args:
             deployment_id: ID of the deployment being rolled back
             reason: Reason for the rollback
             environment: Environment being rolled back
-            
+
         Returns:
             Dictionary containing rollback data
         """
-        logger.debug(f"Generating dummy rollback data for {deployment_id} in {environment}")
-        
+        logger.debug(
+            f"Generating dummy rollback data for {deployment_id} in {environment}"
+        )
+
         rollback_id = f"rollback-{random.randint(100000, 999999)}"
         statuses = ["pending", "in_progress", "completed", "failed"]
         status = random.choice(statuses)
-        
+
         return {
             "rollback_id": rollback_id,
             "deployment_id": deployment_id,
@@ -311,29 +327,50 @@ class DummyDataGenerator:
     def generate_user_data(self, user_id: str) -> Dict[str, Any]:
         """
         Generate realistic dummy user data.
-        
+
         Args:
             user_id: ID of the user
-            
+
         Returns:
             Dictionary containing user data
         """
         logger.debug(f"Generating dummy user data for {user_id}")
-        
-        names = ["John Doe", "Jane Smith", "Bob Johnson", "Alice Brown", "Charlie Wilson"]
-        emails = ["john@example.com", "jane@example.com", "bob@example.com", "alice@example.com", "charlie@example.com"]
+
+        names = [
+            "John Doe",
+            "Jane Smith",
+            "Bob Johnson",
+            "Alice Brown",
+            "Charlie Wilson",
+        ]
+        emails = [
+            "john@example.com",
+            "jane@example.com",
+            "bob@example.com",
+            "alice@example.com",
+            "charlie@example.com",
+        ]
         roles = ["developer", "admin", "observer", "manager"]
-        
+
         return {
             "user_id": user_id,
             "name": random.choice(names),
             "email": random.choice(emails),
             "roles": random.sample(roles, random.randint(1, 3)),
-            "permissions": random.sample([
-                "read_logs", "read_metrics", "deploy_staging", "deploy_production",
-                "rollback_staging", "rollback_production"
-            ], random.randint(2, 5)),
-            "last_login": (self.base_time - timedelta(hours=random.randint(1, 24))).isoformat(),
+            "permissions": random.sample(
+                [
+                    "read_logs",
+                    "read_metrics",
+                    "deploy_staging",
+                    "deploy_production",
+                    "rollback_staging",
+                    "rollback_production",
+                ],
+                random.randint(2, 5),
+            ),
+            "last_login": (
+                self.base_time - timedelta(hours=random.randint(1, 24))
+            ).isoformat(),
             "tenant": f"tenant-{random.randint(1, 10)}",
             "_is_loading": True,
         }
@@ -341,10 +378,10 @@ class DummyDataGenerator:
     def _format_log_message(self, template: str) -> str:
         """
         Format a log message template with realistic values.
-        
+
         Args:
             template: Message template with placeholders
-            
+
         Returns:
             Formatted message string
         """
@@ -362,17 +399,23 @@ class DummyDataGenerator:
             "available": random.randint(5, 50),
             "uptime": random.randint(24, 720),
             "event_id": random.randint(100000, 999999),
-            "function": random.choice(["process_request", "validate_user", "save_data", "send_notification"]),
+            "function": random.choice(
+                ["process_request", "validate_user", "save_data", "send_notification"]
+            ),
             "line": random.randint(10, 200),
-            "variable": random.choice(["user_id", "request_id", "session_token", "response_data"]),
+            "variable": random.choice(
+                ["user_id", "request_id", "session_token", "response_data"]
+            ),
             "host": f"db-{random.randint(1, 5)}.example.com",
             "port": random.choice([3306, 5432, 6379, 27017]),
             "error": random.choice(self.ERROR_MESSAGES),
             "filename": f"file_{random.randint(1, 1000)}.pdf",
             "size": random.randint(1024, 10485760),  # 1KB to 10MB
-            "query": random.choice(["SELECT * FROM users", "UPDATE sessions SET", "INSERT INTO logs"]),
+            "query": random.choice(
+                ["SELECT * FROM users", "UPDATE sessions SET", "INSERT INTO logs"]
+            ),
         }
-        
+
         try:
             return template.format(**replacements)
         except KeyError as e:
@@ -381,7 +424,9 @@ class DummyDataGenerator:
 
 
 # Convenience functions for backward compatibility
-def generate_dummy_logs(count: int = 10, level: Optional[str] = None) -> List[Dict[str, Any]]:
+def generate_dummy_logs(
+    count: int = 10, level: Optional[str] = None
+) -> List[Dict[str, Any]]:
     """Generate dummy logs using the DummyDataGenerator."""
     generator = DummyDataGenerator()
     return generator.generate_logs(count=count, level=level)

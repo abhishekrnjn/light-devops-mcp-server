@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class GatewayRouter(ABC):
     """
     Abstract base class for gateway routing strategies.
-    
+
     All gateway routers must implement these methods to provide
     a consistent interface for routing requests.
     """
@@ -33,14 +33,14 @@ class GatewayRouter(ABC):
     ) -> Dict[str, Any]:
         """
         Get system logs through the gateway.
-        
+
         Args:
             headers: HTTP headers from the request
             user: Authenticated user principal
             level: Optional log level filter
             limit: Maximum number of logs to return
             since: Optional timestamp filter
-            
+
         Returns:
             Dictionary containing logs data
         """
@@ -56,13 +56,13 @@ class GatewayRouter(ABC):
     ) -> Dict[str, Any]:
         """
         Get system metrics through the gateway.
-        
+
         Args:
             headers: HTTP headers from the request
             user: Authenticated user principal
             limit: Maximum number of metrics to return
             service: Optional service filter
-            
+
         Returns:
             Dictionary containing metrics data
         """
@@ -79,14 +79,14 @@ class GatewayRouter(ABC):
     ) -> Dict[str, Any]:
         """
         Deploy a service through the gateway.
-        
+
         Args:
             headers: HTTP headers from the request
             user: Authenticated user principal
             service_name: Name of the service to deploy
             version: Version to deploy
             environment: Target environment
-            
+
         Returns:
             Dictionary containing deployment result
         """
@@ -103,14 +103,14 @@ class GatewayRouter(ABC):
     ) -> Dict[str, Any]:
         """
         Rollback a deployment through the gateway.
-        
+
         Args:
             headers: HTTP headers from the request
             user: Authenticated user principal
             deployment_id: ID of the deployment to rollback
             reason: Reason for the rollback
             environment: Environment to rollback
-            
+
         Returns:
             Dictionary containing rollback result
         """
@@ -126,13 +126,13 @@ class GatewayRouter(ABC):
     ) -> Dict[str, Any]:
         """
         Authenticate user through the gateway.
-        
+
         Args:
             headers: HTTP headers from the request
             user: Authenticated user principal
             session_token: Descope session token
             refresh_token: Optional refresh token
-            
+
         Returns:
             Dictionary containing authentication result
         """
@@ -143,17 +143,17 @@ class GatewayRouter(ABC):
     ) -> None:
         """
         Check if user has required permission.
-        
+
         Args:
             user: User principal to check
             permission: Required permission
             resource: Optional resource description
-            
+
         Raises:
             HTTPException: If user doesn't have permission
         """
         from fastapi import HTTPException
-        
+
         if permission not in user.permissions:
             detail = f"Insufficient permissions to {resource or permission}"
             raise HTTPException(status_code=403, detail=detail)
@@ -163,18 +163,19 @@ class GatewayRouter(ABC):
     ) -> None:
         """
         Validate that all required parameters are present.
-        
+
         Args:
             arguments: Tool arguments to validate
             required_params: List of required parameter names
-            
+
         Raises:
             HTTPException: If required parameters are missing
         """
         from fastapi import HTTPException
-        
+
         missing = [param for param in required_params if not arguments.get(param)]
         if missing:
             raise HTTPException(
-                status_code=400, detail=f"Missing required parameters: {', '.join(missing)}"
+                status_code=400,
+                detail=f"Missing required parameters: {', '.join(missing)}",
             )

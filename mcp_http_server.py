@@ -22,13 +22,13 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routes import health_router, resources_router, tools_router
 from app.middleware import (
-    GatewayRoutingMiddleware,
     ErrorHandlingMiddleware,
+    GatewayRoutingMiddleware,
     LoggingMiddleware,
     RequestValidationMiddleware,
 )
+from app.routes import health_router, resources_router, tools_router
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -69,7 +69,7 @@ if __name__ == "__main__":
     print("📋 Resources (2):")
     print("   - logs    - System logs with filtering")
     print("   - metrics - Performance metrics")
-    print("🔧 Tools (12):")
+    print("🔧 Tools (3):")
     print("   - deploy_service      - Deploy a service")
     print("   - rollback_deployment - Rollback a deployment (staging or production)")
     print("   - authenticate_user   - Authenticate with Descope")
@@ -93,5 +93,9 @@ if __name__ == "__main__":
     print(f"🌐 Server: http://localhost:{port}")
 
     uvicorn.run(
-        "mcp_http_server_refactored:app", host="0.0.0.0", port=port, reload=True, log_level="info"
+        "mcp_http_server_refactored:app",
+        host="0.0.0.0",
+        port=port,
+        reload=True,
+        log_level="info",
     )

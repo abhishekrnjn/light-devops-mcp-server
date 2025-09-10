@@ -9,10 +9,9 @@ Handles all /mcp/tools/* endpoints including:
 - Various MCP tool endpoints for Cequence Gateway
 """
 
-import asyncio
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
@@ -151,7 +150,10 @@ async def list_tools(user: UserPrincipal = Depends(get_current_user)):
                         "type": "string",
                         "description": "ID of the deployment to rollback",
                     },
-                    "reason": {"type": "string", "description": "Reason for the rollback"},
+                    "reason": {
+                        "type": "string",
+                        "description": "Reason for the rollback",
+                    },
                     "environment": {
                         "type": "string",
                         "enum": ["staging", "production"],
@@ -190,7 +192,10 @@ async def list_tools(user: UserPrincipal = Depends(get_current_user)):
                         "enum": ["DEBUG", "INFO", "WARN", "ERROR"],
                         "description": "Log level filter",
                     },
-                    "limit": {"type": "integer", "description": "Limit number of results"},
+                    "limit": {
+                        "type": "integer",
+                        "description": "Limit number of results",
+                    },
                     "since": {
                         "type": "string",
                         "description": "Filter logs since timestamp (ISO format)",
@@ -205,8 +210,14 @@ async def list_tools(user: UserPrincipal = Depends(get_current_user)):
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "limit": {"type": "integer", "description": "Limit number of results"},
-                    "service": {"type": "string", "description": "Filter by service name"},
+                    "limit": {
+                        "type": "integer",
+                        "description": "Limit number of results",
+                    },
+                    "service": {
+                        "type": "string",
+                        "description": "Filter by service name",
+                    },
                     "metric_type": {
                         "type": "string",
                         "description": "Type of metric to retrieve",
@@ -216,7 +227,7 @@ async def list_tools(user: UserPrincipal = Depends(get_current_user)):
             },
         },
     ]
-    
+
     return {"tools": MCP_TOOLS}
 
 
@@ -230,7 +241,7 @@ async def deploy_service_tool(
         # Parse request body
         body = await request.json()
         logger.info(f"🔧 Deploy service tool called with body: {body}")
-        
+
         # Handle both nested and direct parameter formats
         if "arguments" in body:
             # Nested format: {"arguments": {"service_name": "...", "version": "...", "environment": "..."}}
@@ -238,18 +249,18 @@ async def deploy_service_tool(
         else:
             # Direct format: {"service_name": "...", "version": "...", "environment": "..."}
             arguments = body
-        
+
         # Extract arguments
         service_name = arguments.get("service_name")
         version = arguments.get("version")
         environment = arguments.get("environment")
-        
-        logger.info(f"🔧 Extracted parameters: service_name={service_name}, version={version}, environment={environment}")
+
+        logger.info(
+            f"🔧 Extracted parameters: service_name={service_name}, version={version}, environment={environment}"
+        )
 
         # Validate required parameters
-        validate_tool_arguments(
-            arguments, ["service_name", "version", "environment"]
-        )
+        validate_tool_arguments(arguments, ["service_name", "version", "environment"])
     except Exception as e:
         logger.error(f"❌ Error parsing request body: {e}")
         raise HTTPException(status_code=400, detail=f"Invalid request format: {str(e)}")
@@ -304,7 +315,7 @@ async def rollback_deployment_tool(
         # Parse request body
         body = await request.json()
         logger.info(f"🔧 Rollback deployment tool called with body: {body}")
-        
+
         # Handle both nested and direct parameter formats
         if "arguments" in body:
             # Nested format: {"arguments": {"deployment_id": "...", "reason": "...", "environment": "..."}}
@@ -312,18 +323,18 @@ async def rollback_deployment_tool(
         else:
             # Direct format: {"deployment_id": "...", "reason": "...", "environment": "..."}
             arguments = body
-        
+
         # Extract arguments
         deployment_id = arguments.get("deployment_id")
         reason = arguments.get("reason")
         environment = arguments.get("environment")
-        
-        logger.info(f"🔧 Extracted parameters: deployment_id={deployment_id}, reason={reason}, environment={environment}")
+
+        logger.info(
+            f"🔧 Extracted parameters: deployment_id={deployment_id}, reason={reason}, environment={environment}"
+        )
 
         # Validate required parameters
-        validate_tool_arguments(
-            arguments, ["deployment_id", "reason", "environment"]
-        )
+        validate_tool_arguments(arguments, ["deployment_id", "reason", "environment"])
     except Exception as e:
         logger.error(f"❌ Error parsing request body: {e}")
         raise HTTPException(status_code=400, detail=f"Invalid request format: {str(e)}")
@@ -383,7 +394,7 @@ async def authenticate_user_tool(
         # Parse request body
         body = await request.json()
         logger.info(f"🔧 Authenticate user tool called with body: {body}")
-        
+
         # Handle both nested and direct parameter formats
         if "arguments" in body:
             # Nested format: {"arguments": {"session_token": "...", "refresh_token": "..."}}
@@ -391,12 +402,14 @@ async def authenticate_user_tool(
         else:
             # Direct format: {"session_token": "...", "refresh_token": "..."}
             arguments = body
-        
+
         # Extract arguments
         session_token = arguments.get("session_token")
         refresh_token = arguments.get("refresh_token")
-        
-        logger.info(f"🔧 Extracted parameters: session_token={session_token[:20] if session_token else None}..., refresh_token={'present' if refresh_token else 'not present'}")
+
+        logger.info(
+            f"🔧 Extracted parameters: session_token={session_token[:20] if session_token else None}..., refresh_token={'present' if refresh_token else 'not present'}"
+        )
 
         # Validate required parameters
         validate_tool_arguments(arguments, ["session_token"])
@@ -925,7 +938,10 @@ async def get_mcp_tools_tool(
                             "type": "string",
                             "description": "Name of the service to deploy",
                         },
-                        "version": {"type": "string", "description": "Version to deploy"},
+                        "version": {
+                            "type": "string",
+                            "description": "Version to deploy",
+                        },
                         "environment": {
                             "type": "string",
                             "enum": ["development", "staging", "production"],
@@ -945,7 +961,10 @@ async def get_mcp_tools_tool(
                             "type": "string",
                             "description": "ID of the deployment to rollback",
                         },
-                        "reason": {"type": "string", "description": "Reason for the rollback"},
+                        "reason": {
+                            "type": "string",
+                            "description": "Reason for the rollback",
+                        },
                         "environment": {
                             "type": "string",
                             "enum": ["staging", "production"],
@@ -984,7 +1003,10 @@ async def get_mcp_tools_tool(
                             "enum": ["DEBUG", "INFO", "WARN", "ERROR"],
                             "description": "Log level filter",
                         },
-                        "limit": {"type": "integer", "description": "Limit number of results"},
+                        "limit": {
+                            "type": "integer",
+                            "description": "Limit number of results",
+                        },
                         "since": {
                             "type": "string",
                             "description": "Filter logs since timestamp (ISO format)",
@@ -999,8 +1021,14 @@ async def get_mcp_tools_tool(
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "limit": {"type": "integer", "description": "Limit number of results"},
-                        "service": {"type": "string", "description": "Filter by service name"},
+                        "limit": {
+                            "type": "integer",
+                            "description": "Limit number of results",
+                        },
+                        "service": {
+                            "type": "string",
+                            "description": "Filter by service name",
+                        },
                         "metric_type": {
                             "type": "string",
                             "description": "Type of metric to retrieve",
