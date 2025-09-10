@@ -115,7 +115,7 @@ class CequenceClient:
 
         headers = {
             "Content-Type": "application/json",
-            "Accept": "application/json",
+            "Accept": "application/json, text/event-stream",
             "MCP-Protocol-Version": self.protocol_version,
             "Mcp-Session-Id": self.session_id,
             "User-Agent": "DevOps-MCP-Server/1.0",
@@ -133,17 +133,16 @@ class CequenceClient:
     def _get_mcp_headers(self, stream: bool = False) -> Dict[str, str]:
         """Get standard MCP headers for requests.
         
-        By default, only requests JSON responses to avoid the Gateway streaming
-        responses as Server-Sent Events (SSE), which causes multiple log entries
-        for what should be a single request.
+        The Cequence Gateway requires both application/json and text/event-stream
+        in the Accept header, but we handle the response parsing to avoid multiple
+        log entries for single requests.
         
         Args:
-            stream: If True, include text/event-stream in Accept header for SSE responses.
-                   Only use this when you actually need streaming responses.
+            stream: If True, explicitly request streaming. If False, accept both
+                   but parse as single JSON response to avoid multiple log entries.
         """
-        accept_header = "application/json"
-        if stream:
-            accept_header = "application/json, text/event-stream"
+        # Gateway requires both content types, but we control how we parse the response
+        accept_header = "application/json, text/event-stream"
             
         headers = {
             "Content-Type": "application/json",
