@@ -611,20 +611,35 @@ async def list_tools(user: UserPrincipal = Depends(get_current_user)):
 
 @app.post("/mcp/tools/deploy_service")
 async def deploy_service_tool(
-    tool_request: ToolCallRequest,
     request: Request,
     user: UserPrincipal = Depends(get_current_user)
 ):
     """Deploy a service to a specific environment."""
-    logger.info(f"🔧 Deploy service tool called with arguments: {tool_request.arguments}")
-    
-    # Extract arguments
-    service_name = tool_request.arguments.get("service_name")
-    version = tool_request.arguments.get("version")
-    environment = tool_request.arguments.get("environment")
-    
-    # Validate required parameters
-    validate_tool_arguments(tool_request.arguments, ["service_name", "version", "environment"])
+    # Parse request body manually
+    try:
+        body = await request.json()
+        logger.info(f"🔧 Deploy service tool called with body: {body}")
+        
+        # Extract arguments - handle both formats
+        if "arguments" in body:
+            arguments = body["arguments"]
+        else:
+            arguments = body
+            
+        logger.info(f"🔧 Extracted arguments: {arguments}")
+        
+        service_name = arguments.get("service_name")
+        version = arguments.get("version")
+        environment = arguments.get("environment")
+        
+        logger.info(f"🔧 Extracted parameters: service_name={service_name}, version={version}, environment={environment}")
+        
+        # Validate required parameters
+        validate_tool_arguments(arguments, ["service_name", "version", "environment"])
+        
+    except Exception as e:
+        logger.error(f"❌ Error parsing request body: {e}")
+        raise HTTPException(status_code=400, detail=f"Invalid request body: {str(e)}")
     
     # Check environment-specific permissions
     if environment == "production":
@@ -673,20 +688,35 @@ async def deploy_service_tool(
 
 @app.post("/mcp/tools/rollback_deployment")
 async def rollback_deployment_tool(
-    tool_request: ToolCallRequest,
     request: Request,
     user: UserPrincipal = Depends(get_current_user)
 ):
     """Rollback a deployment to previous version."""
-    logger.info(f"🔧 Rollback deployment tool called with arguments: {tool_request.arguments}")
-    
-    # Extract arguments
-    deployment_id = tool_request.arguments.get("deployment_id")
-    reason = tool_request.arguments.get("reason")
-    environment = tool_request.arguments.get("environment")
-    
-    # Validate required parameters
-    validate_tool_arguments(tool_request.arguments, ["deployment_id", "reason", "environment"])
+    # Parse request body manually
+    try:
+        body = await request.json()
+        logger.info(f"🔧 Rollback deployment tool called with body: {body}")
+        
+        # Extract arguments - handle both formats
+        if "arguments" in body:
+            arguments = body["arguments"]
+        else:
+            arguments = body
+            
+        logger.info(f"🔧 Extracted arguments: {arguments}")
+        
+        deployment_id = arguments.get("deployment_id")
+        reason = arguments.get("reason")
+        environment = arguments.get("environment")
+        
+        logger.info(f"🔧 Extracted parameters: deployment_id={deployment_id}, reason={reason}, environment={environment}")
+        
+        # Validate required parameters
+        validate_tool_arguments(arguments, ["deployment_id", "reason", "environment"])
+        
+    except Exception as e:
+        logger.error(f"❌ Error parsing request body: {e}")
+        raise HTTPException(status_code=400, detail=f"Invalid request body: {str(e)}")
     
     # Check environment-specific permissions
     if environment == "production":
