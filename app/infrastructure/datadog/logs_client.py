@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Dict, Any
 from app.domain.entities.log_entry import LogEntry
+from app.domain.entities.log_aggregation import LogAggregation
 from app.infrastructure.datadog.base_client import BaseDatadogClient
 
 logger = logging.getLogger(__name__)
@@ -18,11 +19,11 @@ class DatadogLogsClient(BaseDatadogClient):
         self._default_limit = 10
         self._default_time_range = "now-7d"
     
-    async def fetch_data(self, level: Optional[str] = None, limit: Optional[int] = None) -> List[LogEntry]:
+    async def fetch_data(self, level: Optional[str] = None, limit: Optional[int] = None) -> LogAggregation:
         """Fetch logs from Datadog API with fallback to mock data."""
         if not self._is_api_available():
             logger.warning("Datadog API keys not available, using mock data")
-            return self._get_mock_logs(level)
+            return self._get_mock_logs_aggregation(level, limit)
         
         query = self._build_query(level)
         effective_limit = limit or self._default_limit
@@ -45,14 +46,14 @@ class DatadogLogsClient(BaseDatadogClient):
             )
             
             if response.status_code == 200:
-                return self._handle_success_response(response, level)
+                return self._handle_success_response(response, level, effective_limit)
             else:
                 logger.warning(f"Datadog API error {response.status_code}, falling back to mock data")
-                return self._get_mock_logs(level)
+                return self._get_mock_logs_aggregation(level, effective_limit)
                 
         except Exception as e:
             logger.error(f"Error fetching logs from Datadog: {e}, falling back to mock data")
-            return self._get_mock_logs(level)
+            return self._get_mock_logs_aggregation(level, effective_limit)
     
     def _build_query(self, level: Optional[str] = None) -> str:
         """Build Datadog query string."""
@@ -78,7 +79,7 @@ class DatadogLogsClient(BaseDatadogClient):
             "page": {"limit": limit}
         }
     
-    def _handle_success_response(self, response: httpx.Response, level: Optional[str]) -> List[LogEntry]:
+    def _handle_success_response(self, response: httpx.Response, level: Optional[str], limit: int) -> LogAggregation:
         """Handle successful API response."""
         data = response.json()
         logs_data = data.get("data", [])
@@ -86,12 +87,12 @@ class DatadogLogsClient(BaseDatadogClient):
         if logs_data:
             log_entries = self._transform_logs(logs_data)
             logger.info(f"✅ Successfully fetched {len(log_entries)} real logs from Datadog")
-            return log_entries
+            return self._create_log_aggregation(log_entries, level, limit)
         else:
             logger.info(f"ℹ️  No logs found in Datadog for service '{self._service_name}' in the last 7 days")
             logger.info("💡 This is normal if no applications are sending logs to Datadog yet")
             logger.info("🔄 Falling back to mock data for demonstration")
-            return self._get_mock_logs(level)
+            return self._get_mock_logs_aggregation(level, limit)
     
     def _transform_logs(self, datadog_logs: List[Dict[str, Any]]) -> List[LogEntry]:
         """Transform Datadog logs to LogEntry entities."""
@@ -137,6 +138,39 @@ class DatadogLogsClient(BaseDatadogClient):
             return "INFO"
         return level
     
+    def _create_log_aggregation(self, log_entries: List[LogEntry], level: Optional[str], limit: int) -> LogAggregation:
+        """Create LogAggregation from log entries."""
+        return LogAggregation(
+            summary=f"Retrieved {len(log_entries)} log entries from Datadog",
+            total_count=len(log_entries),
+            level_filter=level or "ALL",
+            time_range=self._default_time_range,
+            entries_preview=f"{len(log_entries)} log entries from system logs",
+            filters_applied={
+                "level": level,
+                "limit": limit,
+                "service": self._service_name
+            },
+            source="datadog"
+        )
+    
+    def _get_mock_logs_aggregation(self, level: Optional[str] = None, limit: int = None) -> LogAggregation:
+        """Generate mock log aggregation when Datadog is unavailable."""
+        effective_limit = limit or self._default_limit
+        return LogAggregation(
+            summary=f"Retrieved {effective_limit} mock log entries",
+            total_count=effective_limit,
+            level_filter=level or "ALL",
+            time_range=self._default_time_range,
+            entries_preview=f"{effective_limit} mock log entries for demonstration",
+            filters_applied={
+                "level": level,
+                "limit": effective_limit,
+                "service": self._service_name
+            },
+            source="mock"
+        )
+
     def _get_mock_logs(self, level: Optional[str] = None) -> List[LogEntry]:
         """Generate mock logs when Datadog is unavailable."""
         mock_entries = [

@@ -5,6 +5,7 @@ import random
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional, Tuple
 from app.domain.entities.metric import Metric
+from app.domain.entities.metrics_aggregation import MetricsAggregation
 from app.infrastructure.datadog.base_client import BaseDatadogClient
 
 logger = logging.getLogger(__name__)
@@ -34,22 +35,23 @@ class DatadogMetricsClient(BaseDatadogClient):
             ("queue_size", "count")
         ]
     
-    async def fetch_data(self, user_permissions: List[str] = None, fetch_historical: bool = False, limit: int = None) -> List[Metric]:
+    async def fetch_data(self, user_permissions: List[str] = None, fetch_historical: bool = False, limit: int = None) -> MetricsAggregation:
         """Fetch metrics from Datadog API with fallback to mock data."""
         if not self._is_api_available():
             logger.warning("Datadog API keys not available, using mock data")
-            return self._get_mock_metrics()
+            return self._get_mock_metrics_aggregation(limit)
         
         # Check cache first (only for non-historical requests)
         if not fetch_historical and self._is_cache_valid():
             logger.info(f"🚀 CACHE HIT: Returning cached metrics (age: {datetime.now(timezone.utc) - self._cache_timestamp})")
-            return self._cache
+            return self._create_metrics_aggregation(self._cache, limit)
         
         try:
-            return await self._fetch_metrics_from_api(fetch_historical, limit)
+            metrics = await self._fetch_metrics_from_api(fetch_historical, limit)
+            return self._create_metrics_aggregation(metrics, limit)
         except Exception as e:
             logger.error(f"Error fetching metrics from Datadog: {e}, falling back to mock data")
-            return self._get_mock_metrics()
+            return self._get_mock_metrics_aggregation(limit)
     
     def _is_cache_valid(self) -> bool:
         """Check if cache is valid."""
@@ -249,3 +251,35 @@ class DatadogMetricsClient(BaseDatadogClient):
             return round(random.uniform(50, 500), 2)
         else:
             return round(random.uniform(10, 100), 2)
+    
+    def _create_metrics_aggregation(self, metrics: List[Metric], limit: int = None) -> MetricsAggregation:
+        """Create MetricsAggregation from metric entries."""
+        effective_limit = limit or len(metrics)
+        return MetricsAggregation(
+            summary=f"Retrieved {len(metrics)} metric entries from Datadog",
+            total_count=len(metrics),
+            service_filter="ALL",
+            time_range="last 7 days",
+            metrics_preview=f"{len(metrics)} metric entries from system monitoring",
+            filters_applied={
+                "limit": effective_limit,
+                "service": self._service_name
+            },
+            source="datadog"
+        )
+    
+    def _get_mock_metrics_aggregation(self, limit: int = None) -> MetricsAggregation:
+        """Generate mock metrics aggregation when Datadog is unavailable."""
+        effective_limit = limit or len(self._metrics_config)
+        return MetricsAggregation(
+            summary=f"Retrieved {effective_limit} mock metric entries",
+            total_count=effective_limit,
+            service_filter="ALL",
+            time_range="last 7 days",
+            metrics_preview=f"{effective_limit} mock metric entries for demonstration",
+            filters_applied={
+                "limit": effective_limit,
+                "service": self._service_name
+            },
+            source="mock"
+        )
