@@ -222,24 +222,37 @@ async def list_tools(user: UserPrincipal = Depends(get_current_user)):
 
 @router.post("/deploy_service")
 async def deploy_service_tool(
-    tool_request: ToolCallRequest,
     request: Request,
     user: UserPrincipal = Depends(get_current_user),
 ):
     """Deploy a service to a specific environment."""
-    logger.info(
-        f"🔧 Deploy service tool called with arguments: {tool_request.arguments}"
-    )
+    try:
+        # Parse request body
+        body = await request.json()
+        logger.info(f"🔧 Deploy service tool called with body: {body}")
+        
+        # Handle both nested and direct parameter formats
+        if "arguments" in body:
+            # Nested format: {"arguments": {"service_name": "...", "version": "...", "environment": "..."}}
+            arguments = body["arguments"]
+        else:
+            # Direct format: {"service_name": "...", "version": "...", "environment": "..."}
+            arguments = body
+        
+        # Extract arguments
+        service_name = arguments.get("service_name")
+        version = arguments.get("version")
+        environment = arguments.get("environment")
+        
+        logger.info(f"🔧 Extracted parameters: service_name={service_name}, version={version}, environment={environment}")
 
-    # Extract arguments
-    service_name = tool_request.arguments.get("service_name")
-    version = tool_request.arguments.get("version")
-    environment = tool_request.arguments.get("environment")
-
-    # Validate required parameters
-    validate_tool_arguments(
-        tool_request.arguments, ["service_name", "version", "environment"]
-    )
+        # Validate required parameters
+        validate_tool_arguments(
+            arguments, ["service_name", "version", "environment"]
+        )
+    except Exception as e:
+        logger.error(f"❌ Error parsing request body: {e}")
+        raise HTTPException(status_code=400, detail=f"Invalid request format: {str(e)}")
 
     # Check environment-specific permissions
     if environment == "production":
@@ -283,24 +296,37 @@ async def deploy_service_tool(
 
 @router.post("/rollback_deployment")
 async def rollback_deployment_tool(
-    tool_request: ToolCallRequest,
     request: Request,
     user: UserPrincipal = Depends(get_current_user),
 ):
     """Rollback a deployment to previous version."""
-    logger.info(
-        f"🔧 Rollback deployment tool called with arguments: {tool_request.arguments}"
-    )
+    try:
+        # Parse request body
+        body = await request.json()
+        logger.info(f"🔧 Rollback deployment tool called with body: {body}")
+        
+        # Handle both nested and direct parameter formats
+        if "arguments" in body:
+            # Nested format: {"arguments": {"deployment_id": "...", "reason": "...", "environment": "..."}}
+            arguments = body["arguments"]
+        else:
+            # Direct format: {"deployment_id": "...", "reason": "...", "environment": "..."}
+            arguments = body
+        
+        # Extract arguments
+        deployment_id = arguments.get("deployment_id")
+        reason = arguments.get("reason")
+        environment = arguments.get("environment")
+        
+        logger.info(f"🔧 Extracted parameters: deployment_id={deployment_id}, reason={reason}, environment={environment}")
 
-    # Extract arguments
-    deployment_id = tool_request.arguments.get("deployment_id")
-    reason = tool_request.arguments.get("reason")
-    environment = tool_request.arguments.get("environment")
-
-    # Validate required parameters
-    validate_tool_arguments(
-        tool_request.arguments, ["deployment_id", "reason", "environment"]
-    )
+        # Validate required parameters
+        validate_tool_arguments(
+            arguments, ["deployment_id", "reason", "environment"]
+        )
+    except Exception as e:
+        logger.error(f"❌ Error parsing request body: {e}")
+        raise HTTPException(status_code=400, detail=f"Invalid request format: {str(e)}")
 
     # Check environment-specific permissions
     if environment == "production":
@@ -349,21 +375,34 @@ async def rollback_deployment_tool(
 
 @router.post("/authenticate_user")
 async def authenticate_user_tool(
-    tool_request: ToolCallRequest,
     request: Request,
     user: UserPrincipal = Depends(get_current_user),
 ):
     """Authenticate user and get permissions."""
-    logger.info(
-        f"🔧 Authenticate user tool called with arguments: {tool_request.arguments}"
-    )
+    try:
+        # Parse request body
+        body = await request.json()
+        logger.info(f"🔧 Authenticate user tool called with body: {body}")
+        
+        # Handle both nested and direct parameter formats
+        if "arguments" in body:
+            # Nested format: {"arguments": {"session_token": "...", "refresh_token": "..."}}
+            arguments = body["arguments"]
+        else:
+            # Direct format: {"session_token": "...", "refresh_token": "..."}
+            arguments = body
+        
+        # Extract arguments
+        session_token = arguments.get("session_token")
+        refresh_token = arguments.get("refresh_token")
+        
+        logger.info(f"🔧 Extracted parameters: session_token={session_token[:20] if session_token else None}..., refresh_token={'present' if refresh_token else 'not present'}")
 
-    # Extract arguments
-    session_token = tool_request.arguments.get("session_token")
-    refresh_token = tool_request.arguments.get("refresh_token")
-
-    # Validate required parameters
-    validate_tool_arguments(tool_request.arguments, ["session_token"])
+        # Validate required parameters
+        validate_tool_arguments(arguments, ["session_token"])
+    except Exception as e:
+        logger.error(f"❌ Error parsing request body: {e}")
+        raise HTTPException(status_code=400, detail=f"Invalid request format: {str(e)}")
 
     # This tool is handled directly by the MCP server without Cequence Gateway routing
     try:
