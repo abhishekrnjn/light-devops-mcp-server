@@ -6,7 +6,7 @@ A Model Context Protocol server over HTTP that provides DevOps operations.
 Supports Server-Sent Events (SSE) for streaming responses.
 
 Usage:
-    python mcp_http_server_refactored.py
+    python mcp_http_server.py
 
 Then clients can:
 - GET /mcp/resources - List available resources
@@ -93,7 +93,7 @@ if __name__ == "__main__":
     print(f"🌐 Server: http://localhost:{port}")
 
     uvicorn.run(
-        "mcp_http_server_refactored:app",
+        "mcp_http_server:app",
         host="0.0.0.0",
         port=port,
         reload=True,
