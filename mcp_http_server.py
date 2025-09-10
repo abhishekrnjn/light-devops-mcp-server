@@ -401,7 +401,28 @@ async def get_logs(
             logger.info("🔧 TEMPORARY: Making direct Cequence call for logs")
             response = await cequence_client.get_logs(headers=headers, level=level, limit=limit, since=since)
             await handle_cequence_gateway_error(response, "logs")
-            return await parse_mcp_response(response)
+            mcp_result = await parse_mcp_response(response)
+            
+            # Convert Cequence response to single aggregated format
+            logs_data = mcp_result.get("data", [])
+            return {
+                "tool": "getMcpResourcesLogs",
+                "success": True,
+                "result": {
+                    "logs_summary": f"Retrieved {len(logs_data)} log entries via Cequence",
+                    "total_count": len(logs_data),
+                    "level_filter": level or "ALL",
+                    "limit_applied": limit,
+                    "time_range": "last 7 days",
+                    "logs_data": f"{len(logs_data)} log entries from system logs",
+                    "filters_applied": {
+                        "level": level,
+                        "limit": limit,
+                        "since": since
+                    },
+                    "source": "cequence_gateway"
+                }
+            }
                 
         except Exception as e:
             logger.error(f"❌ Error routing through Cequence: {e}")
@@ -420,20 +441,23 @@ async def get_logs(
         # Apply limit
         logs = logs[:limit]
         
+        # Return single aggregated response to prevent Cequence from breaking into multiple calls
         return {
-            "uri": "logs",
-            "type": "logs",
-            "count": len(logs),
-            "filters": {"level": level, "limit": limit},
-            "data": [
-                {
-                    "level": log.level,
-                    "message": log.message,
-                    "timestamp": log.timestamp,
-                    "source": getattr(log, 'source', 'system')
+            "tool": "getMcpResourcesLogs",
+            "success": True,
+            "result": {
+                "logs_summary": f"Retrieved {len(logs)} log entries",
+                "total_count": len(logs),
+                "level_filter": level or "ALL",
+                "limit_applied": limit,
+                "time_range": "last 7 days",
+                "logs_data": f"{len(logs)} log entries from system logs",
+                "filters_applied": {
+                    "level": level,
+                    "limit": limit,
+                    "since": since
                 }
-                for log in logs
-            ]
+            }
         }
     
     except Exception as e:
@@ -469,7 +493,27 @@ async def get_metrics(
             logger.info("🔧 TEMPORARY: Making direct Cequence call for metrics")
             response = await cequence_client.get_metrics(headers=headers, limit=limit, service=service)
             await handle_cequence_gateway_error(response, "metrics")
-            return await parse_mcp_response(response)
+            mcp_result = await parse_mcp_response(response)
+            
+            # Convert Cequence response to single aggregated format
+            metrics_data = mcp_result.get("data", [])
+            return {
+                "tool": "getMcpResourcesMetrics",
+                "success": True,
+                "result": {
+                    "metrics_summary": f"Retrieved {len(metrics_data)} metric entries via Cequence",
+                    "total_count": len(metrics_data),
+                    "service_filter": service or "ALL",
+                    "limit_applied": limit,
+                    "time_range": "last 7 days",
+                    "metrics_data": f"{len(metrics_data)} metric entries from system monitoring",
+                    "filters_applied": {
+                        "limit": limit,
+                        "service": service
+                    },
+                    "source": "cequence_gateway"
+                }
+            }
                 
         except Exception as e:
             logger.error(f"❌ Error routing through Cequence: {e}")
@@ -487,20 +531,22 @@ async def get_metrics(
         # Apply limit
         metrics = metrics[:limit]
         
+        # Return single aggregated response to prevent Cequence from breaking into multiple calls
         return {
-            "uri": "metrics",
-            "type": "metrics",
-            "count": len(metrics),
-            "filters": {"limit": limit},
-            "data": [
-                {
-                    "name": metric.name,
-                    "value": metric.value,
-                    "unit": metric.unit,
-                    "timestamp": getattr(metric, 'timestamp', datetime.now().isoformat())
+            "tool": "getMcpResourcesMetrics",
+            "success": True,
+            "result": {
+                "metrics_summary": f"Retrieved {len(metrics)} metric entries",
+                "total_count": len(metrics),
+                "service_filter": service or "ALL",
+                "limit_applied": limit,
+                "time_range": "last 7 days",
+                "metrics_data": f"{len(metrics)} metric entries from system monitoring",
+                "filters_applied": {
+                    "limit": limit,
+                    "service": service
                 }
-                for metric in metrics
-            ]
+            }
         }
     
     except Exception as e:
