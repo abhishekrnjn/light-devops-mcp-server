@@ -1,6 +1,6 @@
 # Light DevOps MCP Server
 
-A Model Context Protocol (MCP) server over HTTP that provides DevOps operations including deployment management, log monitoring, metrics collection, and rollback capabilities. Built with FastAPI and designed for autonomous DevOps operations with integrated authentication and monitoring.
+A comprehensive Model Context Protocol (MCP) server over HTTP that provides autonomous DevOps operations including deployment management, log monitoring, metrics collection, and rollback capabilities. Built with FastAPI using clean architecture principles and designed for enterprise environments with integrated authentication, security, and monitoring.
 
 ## Team Information
 
@@ -14,7 +14,6 @@ A Model Context Protocol (MCP) server over HTTP that provides DevOps operations 
 
 **Challenge Addressed:** Building an autonomous DevOps platform that enables AI agents to perform complex DevOps operations through a standardized Model Context Protocol (MCP) interface, with integrated security, monitoring, and role-based access controls for enterprise environments.
 
-
 ## Demo Video Link
 
 [Demo video will be added here]
@@ -25,23 +24,38 @@ A Model Context Protocol (MCP) server over HTTP that provides DevOps operations 
 
 ## What We Built
 
-This project is an autonomous DevOps MCP server that provides:
+This project is a production-ready autonomous DevOps MCP server that provides:
 
+### Core Capabilities
+- **MCP Protocol Compliance**: Full implementation of Model Context Protocol over HTTP with 2 resources and 12 tools
+- **Dual Mode Operation**: Seamless switching between direct mode and Cequence Gateway routing for enhanced security
+- **Real-time Data Streaming**: Immediate dummy data responses while real API calls execute in background
+- **Comprehensive Error Handling**: Robust fallback mechanisms and detailed error reporting
 
-- **Authentication & Authorization**: Integrated Descope authentication with role-based access control (RBAC)
-- **Cequence Gateway Integration**: Integration with Cequence Gateway for enhanced security and monitoring
-- **Datadog Integration**: Optional integration with Datadog for advanced monitoring and logging
-- **Deployment Management**: Deploy services to different environments (development, staging, production) with proper permission controls with chatbot and webui
-- **Rollback Capabilities**: Safely rollback deployments with audit trails and environment-specific permissions
-- **Log Monitoring**: Real-time log aggregation and filtering with support for different log levels
-- **Metrics Collection**: Performance and health metrics monitoring with customizable filtering
+### DevOps Operations
+- **Deployment Management**: Deploy services to multiple environments (development, staging, production) with environment-specific permissions
+- **Rollback Capabilities**: Safe deployment rollbacks with comprehensive audit trails and reason validation
+- **Log Monitoring**: Real-time log aggregation with level filtering (DEBUG, INFO, WARN, ERROR) and source tracking
+- **Metrics Collection**: Performance and health metrics monitoring with customizable filtering and unit support
+
+### Security & Authentication
+- **Descope Integration**: Enterprise-grade authentication with JWT token validation and automatic refresh
+- **Role-Based Access Control**: Granular permissions for different user roles (Observer, Developer, Developer_prod_access)
+- **Environment-Specific Controls**: Staging vs production permission separation
+- **Anonymous Access Support**: Development-friendly anonymous access mode
+
+### Monitoring & Observability
+- **Datadog Integration**: Optional advanced monitoring and logging with automatic fallback to mock data
+- **Cequence Gateway**: Security gateway integration for audit trails and policy enforcement
+- **Comprehensive Logging**: Structured logging with emoji indicators for easy debugging
+- **Health Checks**: Built-in health monitoring and status reporting
 
 ### Key Features
-
-- **MCP Protocol Compliance**: Implements Model Context Protocol over HTTP for standardized AI agent interactions
-- **Dual Mode Operation**: Works both directly and through Cequence Gateway for enhanced security
-- **Role-Based Access Control**: Granular permissions for different user roles (Observer, Developer, Production Access)
-- **Environment-Specific Controls**: Different permission levels for staging vs production operations
+- **Clean Architecture**: Domain-driven design with separated concerns (domain, infrastructure, schemas)
+- **Async/Await**: Full asynchronous operation for high performance
+- **Type Safety**: Comprehensive type hints and Pydantic models
+- **Configuration Management**: Environment-based configuration with sensible defaults
+- **Docker Support**: Containerized deployment with Dockerfile and production configuration
 ## How to Run
 
 ### Prerequisites
@@ -107,75 +121,97 @@ The project includes `render.yaml` configuration for easy deployment on Render.c
 
 ### API Endpoints
 
-- `GET /` - Server information and capabilities
-- `GET /mcp/resources` - List available MCP resources
-- `GET /mcp/resources/logs` - Get system logs with filtering
-- `GET /mcp/resources/metrics` - Get performance metrics
-- `GET /mcp/tools` - List available MCP tools
-- `POST /mcp/tools/deploy_service` - Deploy a service
-- `POST /mcp/tools/rollback_deployment` - Rollback a deployment
-- `POST /mcp/tools/authenticate_user` - Authenticate user
+#### Core MCP Endpoints
+- `GET /` - Server information, capabilities, and available endpoints
+- `GET /mcp/resources` - List all available MCP resources (logs, metrics)
+- `GET /mcp/resources/logs` - Get system logs with optional filtering (level, limit, since)
+- `GET /mcp/resources/metrics` - Get performance metrics with optional filtering (limit, service)
+- `GET /mcp/resources/{resource_path}` - Read specific resource by URI path
+- `GET /mcp/tools` - List all available MCP tools
+
+#### DevOps Operations
+- `POST /mcp/tools/deploy_service` - Deploy a service to specific environment
+- `POST /mcp/tools/rollback_deployment` - Rollback a deployment with reason and environment
+- `POST /mcp/tools/authenticate_user` - Authenticate user and get permissions
+
+#### Cequence Gateway MCP Tools (for gateway integration)
+- `POST /mcp/tools/getMcpResourcesLogs` - Get logs via MCP tool call
+- `POST /mcp/tools/getMcpResourcesMetrics` - Get metrics via MCP tool call
+- `POST /mcp/tools/postMcpToolsDeployService` - Deploy service via MCP tool call
+- `POST /mcp/tools/postMcpToolsRollbackDeployment` - Rollback via MCP tool call
+- `POST /mcp/tools/postMcpToolsAuthenticateUser` - Authenticate via MCP tool call
+- `POST /mcp/tools/get` - Server information via MCP tool call
+- `POST /mcp/tools/getMcpResources` - List resources via MCP tool call
+- `POST /mcp/tools/getMcpTools` - List tools via MCP tool call
 
 ## Tech Stack
 
-### Required Technologies
-- **Python 3.10+**: Core programming language
-- **FastAPI**: Modern, fast web framework for building APIs
-- **Uvicorn**: ASGI server for running FastAPI applications
-- **Pydantic**: Data validation and settings management
-- **HTTPX**: Async HTTP client for external API calls
+### Core Technologies
+- **Python 3.10+**: Core programming language with async/await support
+- **FastAPI**: Modern, fast web framework with automatic OpenAPI documentation
+- **Uvicorn**: High-performance ASGI server for production deployment
+- **Pydantic**: Data validation, serialization, and settings management
+- **HTTPX**: Async HTTP client for external API calls and Cequence Gateway integration
 
-### Optional Integrations
-- **Descope**: Authentication and user management
-- **Cequence Gateway**: Security gateway and monitoring
-- **Datadog**: Advanced monitoring and logging
-- **Docker**: Containerization
-- **Render.com**: Cloud deployment platform
+### Authentication & Security
+- **Descope**: Enterprise authentication platform with JWT token management
+- **JWT**: JSON Web Tokens for secure session management
+- **RBAC**: Role-based access control with granular permissions
+- **Cequence Gateway**: Security gateway for audit trails and policy enforcement
 
-### Development Tools
-- **Black**: Code formatting
-- **isort**: Import sorting
-- **MyPy**: Static type checking
-- **Ruff**: Fast Python linter
-- **Pre-commit**: Git hooks for code quality
+### Monitoring & Observability
+- **Datadog API**: Advanced monitoring, logging, and metrics collection
+- **Structured Logging**: Comprehensive logging with emoji indicators
+- **Mock Data Generation**: Realistic dummy data for immediate UI responses
+- **Health Monitoring**: Built-in health checks and status reporting
 
-## Demo Video
+### Infrastructure & Deployment
+- **Docker**: Containerization with multi-stage builds
+- **Render.com**: Cloud deployment platform with automatic scaling
+- **Environment Configuration**: Flexible configuration management
+- **CORS Support**: Cross-origin resource sharing for frontend integration
 
-[Demo video link to be added]
+### Development & Code Quality
+- **Black**: Code formatting with 88-character line length
+- **isort**: Import sorting with Black profile compatibility
+- **MyPy**: Static type checking with strict mode
+- **Ruff**: Fast Python linter and formatter
+- **Pre-commit**: Git hooks for automated code quality checks
+- **Type Hints**: Comprehensive type annotations throughout codebase
+
+
 
 ## What We'd Do With More Time
 
-### Enhanced Features
-- **Real-time Streaming**: Implement Server-Sent Events (SSE) for real-time log and metrics streaming
-- **Advanced Monitoring**: Add custom dashboards and alerting capabilities
-- **Multi-tenant Support**: Enhanced tenant isolation and management
-- **Audit Logging**: Comprehensive audit trails for all operations
-- **Webhook Support**: Real-time notifications for deployment events
+### Enhanced Real-time Features
+- **Server-Sent Events (SSE)**: Implement true real-time streaming for logs and metrics
+- **WebSocket Support**: Bidirectional communication for live updates
+- **Real-time Notifications**: Push notifications for deployment status changes
+- **Live Dashboard Updates**: Automatic UI refresh without manual polling
 
-### Performance Improvements
-- **Caching Layer**: Redis integration for improved response times
-- **Database Integration**: Persistent storage for deployment history and configurations
-- **Load Balancing**: Support for horizontal scaling
-- **Rate Limiting**: Advanced rate limiting and throttling
+### Advanced Monitoring & Observability
+- **Custom Dashboards**: User-configurable monitoring dashboards with drag-and-drop widgets
+- **Alert Management**: Intelligent alerting with AI-powered noise reduction
+- **Performance Analytics**: Advanced performance trend analysis and reporting
+- **Cost Optimization**: AI-driven resource optimization recommendations
+
+### Enterprise Features
+- **Multi-tenant Architecture**: Enhanced tenant isolation with dedicated resources
+- **Audit Logging**: Comprehensive audit trails with searchable history
+- **Compliance Frameworks**: Built-in support for SOC2, GDPR, HIPAA compliance
+- **Integration Hub**: Pre-built connectors for popular DevOps tools (Jenkins, GitLab, etc.)
+
+### Performance & Scalability
+- **Redis Caching**: Distributed caching layer for improved response times
+- **Database Integration**: PostgreSQL/MongoDB for persistent storage and history
+- **Load Balancing**: Horizontal scaling with multiple server instances
+- **Rate Limiting**: Advanced rate limiting with per-user and per-endpoint controls
 
 ### Security Enhancements
-- **API Key Management**: Secure API key rotation and management
-- **Encryption**: End-to-end encryption for sensitive data
-- **Compliance**: SOC2, GDPR compliance features
-- **Vulnerability Scanning**: Automated security scanning
+- **API Key Management**: Secure API key rotation and management system
+- **End-to-End Encryption**: Encryption for sensitive data in transit and at rest
+- **Vulnerability Scanning**: Automated security scanning and dependency updates
 
-### Developer Experience
-- **OpenAPI Documentation**: Interactive API documentation
-- **SDK Generation**: Auto-generated client SDKs
-- **Testing Suite**: Comprehensive unit and integration tests
-- **CI/CD Pipeline**: Automated testing and deployment
 
-### AI/ML Integration
-- **Anomaly Detection**: ML-based anomaly detection for metrics
-- **Predictive Scaling**: AI-driven resource scaling recommendations
-- **Intelligent Rollbacks**: Automated rollback decision making
-- **Natural Language Queries**: AI-powered log and metrics querying
 
----
 
-*This project demonstrates modern DevOps practices with AI integration, providing a foundation for autonomous DevOps operations in enterprise environments.*
